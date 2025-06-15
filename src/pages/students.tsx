@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Button, Flex, Space } from "antd";
+import { useState, useMemo } from "react";
+import { Button, Flex, Space, Input } from "antd";
 
 import { StudentTable } from "@/widgets/student-table";
 import {
@@ -15,10 +15,28 @@ const Students = () => {
   const [openPaymentModal, setOpenPaymentModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // RTK Query хуки
   const { data: students, isLoading, error } = useGetStudentsQuery();
   const [deleteStudent] = useDeleteStudentMutation();
+
+  // Фильтрация студентов на основе поискового запроса
+  const filteredStudents = useMemo(() => {
+    if (!students || !searchQuery.trim()) {
+      return students;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return students.filter((student) => {
+      return (
+        student.fullname.toLowerCase().includes(query) ||
+        (student.phone_number &&
+          student.phone_number.toLowerCase().includes(query)) ||
+        (student.address && student.address.toLowerCase().includes(query))
+      );
+    });
+  }, [students, searchQuery]);
 
   const handleCreateStudent = () => {
     setSelectedStudent(undefined);
@@ -49,7 +67,11 @@ const Students = () => {
   if (error) return <div>Error: {JSON.stringify(error)}</div>;
 
   return (
-    <Space direction="vertical" style={{ width: "100%" }}>
+    <Space
+      direction="vertical"
+      style={{ width: "100%", padding: "16px" }}
+      size="large"
+    >
       <StudentFormModal
         open={openModal}
         onClose={() => setOpenModal(false)}
@@ -57,7 +79,7 @@ const Students = () => {
         student={selectedStudent}
         mode={modalMode}
       />
-      
+
       {selectedStudent && (
         <PaymentFormModal
           open={openPaymentModal}
@@ -68,14 +90,20 @@ const Students = () => {
         />
       )}
 
-      <Flex justify="end">
+      <Flex justify="space-between" align="center" gap={16}>
+        <Input.Search
+          placeholder="Search students by name, phone number or address"
+          // style={{ width: 300 }}
+          allowClear
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
         <Button type="primary" onClick={handleCreateStudent}>
-          Add Student
+          Create Student
         </Button>
       </Flex>
 
       <StudentTable
-        data={students ?? []}
+        data={filteredStudents ?? []}
         onEdit={handleEditStudent}
         onDelete={handleDeleteStudent}
         onAddPayment={handleAddPayment}

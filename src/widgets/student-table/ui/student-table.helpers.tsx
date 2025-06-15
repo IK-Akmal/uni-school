@@ -1,6 +1,10 @@
 import type { TableColumnsType } from "antd";
 import { Button, Popconfirm, Space } from "antd";
-import { EditOutlined, DeleteOutlined, DollarOutlined } from "@ant-design/icons";
+import {
+  EditOutlined,
+  DeleteOutlined,
+  DollarOutlined,
+} from "@ant-design/icons";
 import type { Student } from "@/shared/types/models";
 
 export const rowKey = (row: Student) => row.id;
@@ -31,7 +35,7 @@ export const getColumns = (
   {
     title: "Actions",
     key: "actions",
-    width: 120,
+    width: 140,
     render: (_, record) => (
       <Space>
         {onEdit && (
