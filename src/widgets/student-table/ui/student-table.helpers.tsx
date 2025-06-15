@@ -1,13 +1,14 @@
 import type { TableColumnsType } from "antd";
 import { Button, Popconfirm, Space } from "antd";
-import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, DollarOutlined } from "@ant-design/icons";
 import type { Student } from "@/shared/types/models";
 
 export const rowKey = (row: Student) => row.id;
 
 export const getColumns = (
   onEdit?: (student: Student) => void,
-  onDelete?: (id: number) => void
+  onDelete?: (id: number) => void,
+  onAddPayment?: (student: Student) => void
 ): TableColumnsType<Student> => [
   {
     title: "Name",
@@ -38,6 +39,15 @@ export const getColumns = (
             type="text"
             icon={<EditOutlined />}
             onClick={() => onEdit(record)}
+            title="Edit student"
+          />
+        )}
+        {onAddPayment && (
+          <Button
+            type="text"
+            icon={<DollarOutlined />}
+            onClick={() => onAddPayment(record)}
+            title="Add payment"
           />
         )}
         {onDelete && (

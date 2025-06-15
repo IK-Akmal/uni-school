@@ -7,10 +7,12 @@ import {
   useDeleteStudentMutation,
 } from "@/shared/api/studentApi";
 import { StudentFormModal } from "@/features/student/student-form-modal";
+import { PaymentFormModal } from "@/features/payment/payment-form-modal";
 import { Student } from "@/shared/types/models";
 
 const Students = () => {
   const [openModal, setOpenModal] = useState(false);
+  const [openPaymentModal, setOpenPaymentModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
 
@@ -28,6 +30,11 @@ const Students = () => {
     setSelectedStudent(student);
     setModalMode("edit");
     setOpenModal(true);
+  };
+
+  const handleAddPayment = (student: Student) => {
+    setSelectedStudent(student);
+    setOpenPaymentModal(true);
   };
 
   const handleDeleteStudent = async (id: number) => {
@@ -50,6 +57,16 @@ const Students = () => {
         student={selectedStudent}
         mode={modalMode}
       />
+      
+      {selectedStudent && (
+        <PaymentFormModal
+          open={openPaymentModal}
+          onClose={() => setOpenPaymentModal(false)}
+          onSuccess={() => setOpenPaymentModal(false)}
+          studentId={selectedStudent.id}
+          title={`Add Payment for ${selectedStudent.fullname}`}
+        />
+      )}
 
       <Flex justify="end">
         <Button type="primary" onClick={handleCreateStudent}>
@@ -61,6 +78,7 @@ const Students = () => {
         data={students ?? []}
         onEdit={handleEditStudent}
         onDelete={handleDeleteStudent}
+        onAddPayment={handleAddPayment}
       />
     </Space>
   );

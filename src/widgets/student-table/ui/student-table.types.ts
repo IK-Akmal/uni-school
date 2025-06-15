@@ -5,4 +5,5 @@ export interface StudentTableProps {
   data: Student[];
   onEdit?: (student: Student) => void;
   onDelete?: (id: number) => void;
+  onAddPayment?: (student: Student) => void;
 }
