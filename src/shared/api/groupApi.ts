@@ -32,11 +32,12 @@ export const groupApi = createApi({
       providesTags: (_, __, id) => [{ type: "Group", id }],
     }),
 
-    createGroup: builder.mutation<void, Omit<Group, "id">>({
+    createGroup: builder.mutation<{ id: number }, Omit<Group, "id">>({
       query: (group) => ({
-        sql: "INSERT INTO group_entity (title) VALUES (?)",
+        sql: "INSERT INTO group_entity (title) VALUES (?) RETURNING id",
         args: [group.title],
       }),
+      transformResponse: (response: { id: number }[]) => response[0],
       invalidatesTags: [{ type: "Group", id: "LIST" }],
     }),
 

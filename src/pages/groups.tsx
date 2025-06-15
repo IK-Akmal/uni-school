@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import VirtualList from "rc-virtual-list";
 import { Button, Flex, Space, Input, Modal, List, Avatar } from "antd";
 import { TeamOutlined } from "@ant-design/icons";
 
@@ -100,21 +101,26 @@ const Groups = () => {
         {isLoadingStudents ? (
           <div>Loading students...</div>
         ) : (
-          <List
-            dataSource={groupStudents || []}
-            renderItem={(student: Student) => (
-              <List.Item>
-                <List.Item.Meta
-                  avatar={<Avatar icon={<TeamOutlined />} />}
-                  title={student.fullname}
-                  description={`Phone: ${
-                    student.phone_number || "N/A"
-                  }, Payment Due: ${student.payment_due || "0"}`}
-                />
-              </List.Item>
-            )}
-            locale={{ emptyText: "No students in this group" }}
-          />
+          <List locale={{ emptyText: "No students in this group" }}>
+            <VirtualList
+              itemKey="id"
+              itemHeight={47}
+              data={groupStudents || []}
+              height={Math.min(500, window.innerHeight - 200)}
+            >
+              {(student: Student) => (
+                <List.Item key={student.id}>
+                  <List.Item.Meta
+                    avatar={<Avatar icon={<TeamOutlined />} />}
+                    title={student.fullname}
+                    description={`Phone: ${
+                      student.phone_number || "N/A"
+                    }, Payment Due: ${student.payment_due || "0"}`}
+                  />
+                </List.Item>
+              )}
+            </VirtualList>
+          </List>
         )}
       </Modal>
 

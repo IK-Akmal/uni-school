@@ -1,11 +1,15 @@
-import { Drawer, Form, Input, Button, message } from "antd";
+import { Drawer, Form, Input, Button, message, Select } from "antd";
 import { useEffect } from "react";
 
 import {
   useCreateGroupMutation,
   useUpdateGroupMutation,
+  useGetGroupStudentsQuery,
+  useAddStudentToGroupMutation,
+  useRemoveStudentFromGroupMutation,
 } from "@/shared/api/groupApi";
-import type { Group } from "@/shared/types/models";
+import { useGetStudentsQuery } from "@/shared/api/studentApi";
+import type { Group, Student } from "@/shared/types/models";
 
 interface GroupFormModalProps {
   open: boolean;
@@ -17,6 +21,7 @@ interface GroupFormModalProps {
 
 type FieldType = {
   title: string;
+  studentIds?: number[];
 };
 
 const GroupFormModal = ({
@@ -31,6 +36,18 @@ const GroupFormModal = ({
   // RTK Query хуки для создания и обновления группы
   const [createGroup, { isLoading: isCreating }] = useCreateGroupMutation();
   const [updateGroup, { isLoading: isUpdating }] = useUpdateGroupMutation();
+  const [addStudentToGroup] = useAddStudentToGroupMutation();
+  const [removeStudentFromGroup] = useRemoveStudentFromGroupMutation();
+
+  // Получаем список всех студентов
+  const { data: students, isLoading: isLoadingStudents } =
+    useGetStudentsQuery();
+
+  // Получаем список студентов в группе (только для режима редактирования)
+  const { data: groupStudents, isLoading: isLoadingGroupStudents } =
+    useGetGroupStudentsQuery(group?.id || 0, {
+      skip: mode !== "edit" || !group,
+    });
 
   // Сбрасываем форму при открытии и заполняем данными при редактировании
   useEffect(() => {
@@ -44,13 +61,70 @@ const GroupFormModal = ({
     }
   }, [open, form, group, mode]);
 
+  // Заполняем список выбранных студентов при редактировании группы
+  useEffect(() => {
+    if (mode === "edit" && groupStudents && groupStudents.length > 0) {
+      const studentIds = groupStudents.map((student) => student.id);
+      form.setFieldsValue({
+        studentIds: studentIds,
+      });
+    }
+  }, [groupStudents, form, mode]);
+
   const onFinish = async (values: FieldType) => {
     try {
+      // Создание новой группы
       if (mode === "create") {
-        await createGroup(values);
+        // Создаем группу
+        const createResult = await createGroup({
+          title: values.title,
+        }).unwrap();
+        const newGroupId = createResult?.id;
+
+        // Если выбраны студенты и есть ID новой группы
+        if (values.studentIds && values.studentIds.length > 0 && newGroupId) {
+          // Добавляем выбранных студентов в группу
+          for (const studentId of values.studentIds) {
+            await addStudentToGroup({
+              groupId: newGroupId,
+              studentId: studentId,
+            });
+          }
+        }
+
         message.success("Group created successfully");
-      } else if (mode === "edit" && group) {
-        await updateGroup({ id: group.id, ...values });
+      }
+      // Обновление существующей группы
+      else if (mode === "edit" && group) {
+        // Обновляем данные группы
+        await updateGroup({ id: group.id, title: values.title });
+
+        // Обновляем список студентов в группе
+        if (groupStudents && values.studentIds) {
+          const currentStudentIds = groupStudents.map((student) => student.id);
+          const newStudentIds = values.studentIds;
+
+          // Добавляем новых студентов
+          for (const studentId of newStudentIds) {
+            if (!currentStudentIds.includes(studentId)) {
+              await addStudentToGroup({
+                groupId: group.id,
+                studentId: studentId,
+              });
+            }
+          }
+
+          // Удаляем студентов, которых больше нет в списке
+          for (const studentId of currentStudentIds) {
+            if (!newStudentIds.includes(studentId)) {
+              await removeStudentFromGroup({
+                groupId: group.id,
+                studentId: studentId,
+              });
+            }
+          }
+        }
+
         message.success("Group updated successfully");
       }
 
@@ -93,6 +167,30 @@ const GroupFormModal = ({
           rules={[{ required: true, message: "Please input group title!" }]}
         >
           <Input />
+        </Form.Item>
+
+        <Form.Item<FieldType>
+          label="Students"
+          name="studentIds"
+          help="Select students to add to this group"
+        >
+          <Select
+            mode="multiple"
+            placeholder="Select students"
+            loading={isLoadingStudents || isLoadingGroupStudents}
+            optionFilterProp="children"
+            showSearch
+            style={{ width: "100%" }}
+            onChange={(values) =>
+              form.setFieldsValue({ studentIds: values as number[] })
+            }
+          >
+            {students?.map((student: Student) => (
+              <Select.Option key={student.id} value={student.id}>
+                {student.fullname}
+              </Select.Option>
+            ))}
+          </Select>
         </Form.Item>
 
         <Form.Item wrapperCol={{ offset: 0, span: 24 }}>
