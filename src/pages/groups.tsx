@@ -79,7 +79,7 @@ const Groups = () => {
   return (
     <Space
       direction="vertical"
-      style={{ width: "100%", padding: "16px" }}
+      style={{ width: "100%", padding: "16px", display: "flex" }}
       size="large"
     >
       <GroupFormModal
