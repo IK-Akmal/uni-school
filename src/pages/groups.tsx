@@ -1,140 +1,141 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { Button, Flex, Space, Input, Modal, List, Avatar } from "antd";
+import { TeamOutlined } from "@ant-design/icons";
+
+import { GroupTable } from "@/widgets/group-table";
 import {
   useGetGroupsQuery,
-  useCreateGroupMutation,
   useDeleteGroupMutation,
   useGetGroupStudentsQuery,
-} from "../shared/api/groupApi";
-import { Group } from "../shared/types/models";
+} from "@/shared/api/groupApi";
+import { GroupFormModal } from "@/features/group/group-form-modal";
+import type { Group, Student } from "@/shared/types/models";
 
 const Groups = () => {
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
-  const [newGroupName, setNewGroupName] = useState("");
+  const [openModal, setOpenModal] = useState(false);
+  const [openStudentsModal, setOpenStudentsModal] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<Group | undefined>();
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // RTK Query хуки
-  const { data: groups, isLoading, error } = useGetGroupsQuery();
-  const [createGroup] = useCreateGroupMutation();
+  const {
+    data: groups,
+    isLoading,
+    error,
+  } = useGetGroupsQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
   const [deleteGroup] = useDeleteGroupMutation();
 
   // Загрузка студентов для выбранной группы
   const { data: groupStudents, isLoading: isLoadingStudents } =
-    useGetGroupStudentsQuery(selectedGroupId || 0, {
-      skip: !selectedGroupId,
+    useGetGroupStudentsQuery(selectedGroup?.id || 0, {
+      skip: !selectedGroup,
+      refetchOnMountOrArgChange: true,
     });
 
-
-
-  // Обработчики событий
-  const handleCreateGroup = async () => {
-    if (newGroupName.trim()) {
-      try {
-        await createGroup({ title: newGroupName });
-        setNewGroupName("");
-      } catch (error) {
-        console.error("Error creating group:", error);
-      }
+  // Фильтрация групп на основе поискового запроса
+  const filteredGroups = useMemo(() => {
+    if (!groups || !searchQuery.trim()) {
+      return groups;
     }
+
+    const query = searchQuery.toLowerCase().trim();
+    return groups.filter((group) => {
+      return group.title.toLowerCase().includes(query);
+    });
+  }, [groups, searchQuery]);
+
+  const handleCreateGroup = () => {
+    setSelectedGroup(undefined);
+    setModalMode("create");
+    setOpenModal(true);
+  };
+
+  const handleEditGroup = (group: Group) => {
+    setSelectedGroup(group);
+    setModalMode("edit");
+    setOpenModal(true);
+  };
+
+  const handleViewStudents = (group: Group) => {
+    setSelectedGroup(group);
+    setOpenStudentsModal(true);
   };
 
   const handleDeleteGroup = async (id: number) => {
     try {
       await deleteGroup(id);
-      if (selectedGroupId === id) {
-        setSelectedGroupId(null);
-      }
     } catch (error) {
       console.error("Error deleting group:", error);
     }
   };
 
-  if (isLoading) return <div>Загрузка групп...</div>;
-  if (error) return <div>Ошибка: {JSON.stringify(error)}</div>;
+  if (isLoading) return <div>Loading groups...</div>;
+  if (error) return <div>Error: {JSON.stringify(error)}</div>;
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Группы</h1>
+    <Space
+      direction="vertical"
+      style={{ width: "100%", padding: "16px" }}
+      size="large"
+    >
+      <GroupFormModal
+        open={openModal}
+        onClose={() => setOpenModal(false)}
+        onSuccess={() => setOpenModal(false)}
+        group={selectedGroup}
+        mode={modalMode}
+      />
 
-      {/* Форма создания группы */}
-      <div className="mb-6 p-4 bg-gray-100 rounded">
-        <h2 className="text-lg font-semibold mb-2">Добавить новую группу</h2>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
-            placeholder="Название группы"
-            className="flex-1 p-2 border rounded"
+      {/* Модальное окно для просмотра студентов группы */}
+      <Modal
+        title={`Students in group: ${selectedGroup?.title || ""}`}
+        open={openStudentsModal}
+        onCancel={() => setOpenStudentsModal(false)}
+        footer={null}
+        width={600}
+      >
+        {isLoadingStudents ? (
+          <div>Loading students...</div>
+        ) : (
+          <List
+            dataSource={groupStudents || []}
+            renderItem={(student: Student) => (
+              <List.Item>
+                <List.Item.Meta
+                  avatar={<Avatar icon={<TeamOutlined />} />}
+                  title={student.fullname}
+                  description={`Phone: ${
+                    student.phone_number || "N/A"
+                  }, Payment Due: ${student.payment_due || "0"}`}
+                />
+              </List.Item>
+            )}
+            locale={{ emptyText: "No students in this group" }}
           />
-          <button
-            onClick={handleCreateGroup}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            Добавить
-          </button>
-        </div>
-      </div>
+        )}
+      </Modal>
 
-      {/* Список групп */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="col-span-1 bg-gray-100 p-4 rounded">
-          <h2 className="text-lg font-semibold mb-2">Список групп</h2>
-          {groups && groups.length > 0 ? (
-            <ul className="divide-y">
-              {groups.map((group: Group) => (
-                <li
-                  key={group.id}
-                  className="py-2 flex justify-between items-center"
-                >
-                  <button
-                    onClick={() => setSelectedGroupId(group.id)}
-                    className={`text-left flex-1 ${
-                      selectedGroupId === group.id ? "font-bold" : ""
-                    }`}
-                  >
-                    {group.title}
-                  </button>
-                  <button
-                    onClick={() => handleDeleteGroup(group.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Удалить
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>Нет доступных групп</p>
-          )}
-        </div>
+      <Flex justify="space-between" align="center" gap={16}>
+        <Input.Search
+          placeholder="Search groups by title"
+          allowClear
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <Button type="primary" onClick={handleCreateGroup}>
+          Create Group
+        </Button>
+      </Flex>
 
-        {/* Детали выбранной группы */}
-        <div className="col-span-2 bg-gray-100 p-4 rounded">
-          {selectedGroupId ? (
-            <div>
-              <h2 className="text-lg font-semibold mb-2">
-                Студенты группы:{" "}
-                {groups?.find((g) => g.id === selectedGroupId)?.title}
-              </h2>
-              {isLoadingStudents ? (
-                <p>Загрузка студентов...</p>
-              ) : groupStudents && groupStudents.length > 0 ? (
-                <ul className="divide-y">
-                  {groupStudents.map((student) => (
-                    <li key={student.id} className="py-2">
-                      {student.fullname} - {student.phone_number}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>В этой группе нет студентов</p>
-              )}
-            </div>
-          ) : (
-            <p>Выберите группу для просмотра деталей</p>
-          )}
-        </div>
-      </div>
-    </div>
+      <GroupTable
+        data={filteredGroups ?? []}
+        onEdit={handleEditGroup}
+        onDelete={handleDeleteGroup}
+        onViewStudents={handleViewStudents}
+      />
+    </Space>
   );
 };
 
