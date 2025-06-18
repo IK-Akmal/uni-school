@@ -1,8 +1,10 @@
-import { Drawer, Form, Input, Select, Button, message } from "antd";
+import { Form, message } from "antd";
 import { useEffect } from "react";
 
-import { useCreateStudentWithGroupMutation } from "@/shared/api/studentApi";
 import { useGetGroupsQuery } from "@/shared/api/groupApi";
+import { StudentForm } from "@/shared/components/student-form";
+import { useCreateStudentWithGroupMutation } from "@/shared/api/studentApi";
+
 import type { CreateStudentModalProps, FieldType } from "./CreateStudent.types";
 
 const CreateStudentModal = ({
@@ -13,7 +15,10 @@ const CreateStudentModal = ({
   const [form] = Form.useForm<FieldType>();
 
   // Получаем список групп
-  const { data: groups } = useGetGroupsQuery();
+  const { data: groups } = useGetGroupsQuery(undefined, {
+    skip: !open,
+    refetchOnMountOrArgChange: true,
+  });
 
   // Используем новый мутационный хук для создания студента с группой
   const [createStudentWithGroup, { isLoading }] =
@@ -49,6 +54,7 @@ const CreateStudentModal = ({
       });
 
       message.success("Student successfully created");
+
       form.resetFields();
       if (onSuccess) onSuccess();
       onClose();
@@ -59,88 +65,16 @@ const CreateStudentModal = ({
   };
 
   return (
-    <Drawer
-      size="default"
-      title="Create New Student"
-      closable={{ "aria-label": "Close Button" }}
-      onClose={onClose}
+    <StudentForm
+      form={form}
       open={open}
-      width={500}
-    >
-      <Form<FieldType>
-        form={form}
-        labelCol={{ span: 12 }}
-        wrapperCol={{ span: 24 }}
-        onFinish={onFinish}
-        layout="vertical"
-        autoComplete="off"
-      >
-        <Form.Item<FieldType>
-          label="Full name"
-          name="fullname"
-          rules={[
-            { required: true, message: "Please enter the student's full name" },
-          ]}
-        >
-          <Input />
-        </Form.Item>
-
-        <Form.Item<FieldType>
-          label="Phone number"
-          name="phone_number"
-          rules={[
-            {
-              required: true,
-              message: "Please enter the student's phone number",
-            },
-          ]}
-        >
-          <Input />
-        </Form.Item>
-
-        <Form.Item<FieldType>
-          label="Address"
-          name="address"
-          rules={[
-            {
-              max: 150,
-              min: 0,
-            },
-          ]}
-        >
-          <Input.TextArea autoSize={{ minRows: 4, maxRows: 4 }} />
-        </Form.Item>
-
-        <Form.Item<FieldType>
-          label="Payment Due"
-          name="payment_due"
-          initialValue="0"
-        >
-          <Input type="number" />
-        </Form.Item>
-
-        <Form.Item<FieldType> label="Groups" name="groupIds">
-          <Select 
-            placeholder="Select groups" 
-            allowClear 
-            loading={isLoading}
-            mode="multiple"
-          >
-            {groups?.map((group) => (
-              <Select.Option key={group.id} value={group.id}>
-                {group.title}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
-
-        <Form.Item wrapperCol={{ offset: 0 }}>
-          <Button type="primary" htmlType="submit" loading={isLoading} block>
-            Create Student
-          </Button>
-        </Form.Item>
-      </Form>
-    </Drawer>
+      onClose={onClose}
+      onFinish={onFinish}
+      groups={groups ?? []}
+      isLoading={isLoading}
+      title="Create New Student"
+      buttonLabel="Create Student"
+    />
   );
 };
 

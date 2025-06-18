@@ -65,12 +65,12 @@ const PaymentFormModal = ({
 
   return (
     <Drawer
-      size="default"
-      title={title}
-      closable={{ "aria-label": "Close Button" }}
-      onClose={onClose}
       open={open}
       width={400}
+      size="default"
+      title={title}
+      onClose={onClose}
+      closable={{ "aria-label": "Close Button" }}
     >
       <Form<FieldType>
         form={form}

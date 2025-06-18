@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { Button, Flex, Space, Input } from "antd";
 
 import { StudentTable } from "@/widgets/student-table";
@@ -6,16 +6,19 @@ import {
   useGetStudentsQuery,
   useDeleteStudentMutation,
 } from "@/shared/api/studentApi";
-import { StudentFormModal } from "@/features/student/student-form-modal";
+import { EditStudentModal } from "@/features/student/edit-student-modal";
 import { PaymentFormModal } from "@/features/payment/payment-form-modal";
 import { Student } from "@/shared/types/models";
+import { CreateStudentModal } from "@/features/student/create-student-modal";
 
 const Students = () => {
-  const [openModal, setOpenModal] = useState(false);
+  const [openEditModal, setOpenEditModal] = useState(false);
+  const [openCreateModal, setOpenCreateModal] = useState(false);
   const [openPaymentModal, setOpenPaymentModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
-  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // RTK Query хуки
   const { data: students, isLoading, error } = useGetStudentsQuery();
@@ -23,11 +26,11 @@ const Students = () => {
 
   // Фильтрация студентов на основе поискового запроса
   const filteredStudents = useMemo(() => {
-    if (!students || !searchQuery.trim()) {
+    if (!students || !deferredSearchQuery.trim()) {
       return students;
     }
 
-    const query = searchQuery.toLowerCase().trim();
+    const query = deferredSearchQuery.toLowerCase().trim();
     return students.filter((student) => {
       return (
         student.fullname.toLowerCase().includes(query) ||
@@ -36,18 +39,20 @@ const Students = () => {
         (student.address && student.address.toLowerCase().includes(query))
       );
     });
-  }, [students, searchQuery]);
+  }, [students, deferredSearchQuery]);
 
   const handleCreateStudent = () => {
     setSelectedStudent(undefined);
-    setModalMode("create");
-    setOpenModal(true);
+    setOpenCreateModal(true);
+  };
+
+  const handleCreateStudentSuccess = () => {
+    setOpenCreateModal(false);
   };
 
   const handleEditStudent = (student: Student) => {
     setSelectedStudent(student);
-    setModalMode("edit");
-    setOpenModal(true);
+    setOpenEditModal(true);
   };
 
   const handleAddPayment = (student: Student) => {
@@ -72,12 +77,17 @@ const Students = () => {
       style={{ width: "100%", padding: "16px", display: "flex" }}
       size="large"
     >
-      <StudentFormModal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        onSuccess={() => setOpenModal(false)}
+      <CreateStudentModal
+        open={openCreateModal}
+        onClose={() => setOpenCreateModal(false)}
+        onSuccess={handleCreateStudentSuccess}
+      />
+
+      <EditStudentModal
+        open={openEditModal}
         student={selectedStudent}
-        mode={modalMode}
+        onClose={() => setOpenEditModal(false)}
+        onSuccess={() => setOpenEditModal(false)}
       />
 
       {selectedStudent && (
@@ -92,9 +102,8 @@ const Students = () => {
 
       <Flex justify="space-between" align="center" gap={16}>
         <Input.Search
-          placeholder="Search students by name, phone number or address"
-          // style={{ width: 300 }}
           allowClear
+          placeholder="Search students by name, phone number or address"
           onChange={(e) => setSearchQuery(e.target.value)}
         />
         <Button type="primary" onClick={handleCreateStudent}>
