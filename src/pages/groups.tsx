@@ -9,14 +9,15 @@ import {
   useDeleteGroupMutation,
   useGetGroupStudentsQuery,
 } from "@/shared/api/groupApi";
-import { GroupFormModal } from "@/features/group/group-form-modal";
+import { CreateGroupModal } from "@/features/group/create-group-modal";
+import { EditGroupModal } from "@/features/group/edit-group-modal";
 import type { Group, Student } from "@/shared/types/models";
 
 const Groups = () => {
-  const [openModal, setOpenModal] = useState(false);
+  const [openCreateModal, setOpenCreateModal] = useState(false);
+  const [openEditModal, setOpenEditModal] = useState(false);
   const [openStudentsModal, setOpenStudentsModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<Group | undefined>();
-  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [searchQuery, setSearchQuery] = useState("");
 
   // RTK Query хуки
@@ -49,15 +50,20 @@ const Groups = () => {
   }, [groups, searchQuery]);
 
   const handleCreateGroup = () => {
-    setSelectedGroup(undefined);
-    setModalMode("create");
-    setOpenModal(true);
+    setOpenCreateModal(true);
+  };
+
+  const handleCreateGroupSuccess = () => {
+    setOpenCreateModal(false);
   };
 
   const handleEditGroup = (group: Group) => {
     setSelectedGroup(group);
-    setModalMode("edit");
-    setOpenModal(true);
+    setOpenEditModal(true);
+  };
+
+  const handleEditGroupSuccess = () => {
+    setOpenEditModal(false);
   };
 
   const handleViewStudents = (group: Group) => {
@@ -82,12 +88,17 @@ const Groups = () => {
       style={{ width: "100%", padding: "16px", display: "flex" }}
       size="large"
     >
-      <GroupFormModal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        onSuccess={() => setOpenModal(false)}
+      <CreateGroupModal
+        open={openCreateModal}
+        onClose={() => setOpenCreateModal(false)}
+        onSuccess={handleCreateGroupSuccess}
+      />
+
+      <EditGroupModal
+        open={openEditModal}
+        onClose={() => setOpenEditModal(false)}
+        onSuccess={handleEditGroupSuccess}
         group={selectedGroup}
-        mode={modalMode}
       />
 
       {/* Модальное окно для просмотра студентов группы */}

@@ -100,6 +100,63 @@ export const groupApi = createApi({
         { type: "Group", id: "LIST" },
       ],
     }),
+
+    updateGroupWithStudents: builder.mutation<
+      void,
+      { group: Group; studentIds?: number[] }
+    >({
+      async queryFn(
+        { group, studentIds },
+        _queryApi,
+        _extraOptions,
+        baseQuery
+      ) {
+        // Используем транзакцию для обновления группы и связей со студентами
+        try {
+          // Обновляем данные группы
+          const updateResult = await baseQuery({
+            sql: "UPDATE group_entity SET title = ? WHERE id = ?",
+            args: [group.title, group.id],
+            useTransaction: true,
+          });
+
+          if (updateResult.error) return { error: updateResult.error };
+
+          // Если указаны студенты, обновляем связи группа-студент
+          if (studentIds !== undefined) {
+            // Удаляем все текущие связи группы со студентами
+            const deleteResult = await baseQuery({
+              sql: "DELETE FROM student_group WHERE group_id = ?",
+              args: [group.id],
+              useTransaction: true,
+            });
+
+            if (deleteResult.error) return { error: deleteResult.error };
+
+            // Добавляем новые связи группы со студентами
+            if (studentIds && studentIds.length > 0) {
+              for (const studentId of studentIds) {
+                const insertResult = await baseQuery({
+                  sql: "INSERT INTO student_group (student_id, group_id) VALUES (?, ?)",
+                  args: [studentId, group.id],
+                  useTransaction: true,
+                });
+
+                if (insertResult.error) return { error: insertResult.error };
+              }
+            }
+          }
+
+          return { data: undefined };
+        } catch (error) {
+          return { error: { message: "Failed to update group with students" } };
+        }
+      },
+      invalidatesTags: (_, __, { group }) => [
+        { type: "Group", id: group.id },
+        { type: "Group", id: "LIST" },
+      ],
+    }),
   }),
 });
 
@@ -112,4 +169,5 @@ export const {
   useGetGroupStudentsQuery,
   useAddStudentToGroupMutation,
   useRemoveStudentFromGroupMutation,
+  useUpdateGroupWithStudentsMutation,
 } = groupApi;

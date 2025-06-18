@@ -40,13 +40,19 @@ const GroupFormModal = ({
   const [removeStudentFromGroup] = useRemoveStudentFromGroupMutation();
 
   // Получаем список всех студентов
-  const { data: students, isLoading: isLoadingStudents } =
-    useGetStudentsQuery();
+  const { data: students, isLoading: isLoadingStudents } = useGetStudentsQuery(
+    undefined,
+    {
+      skip: !open,
+      refetchOnMountOrArgChange: true,
+    }
+  );
 
   // Получаем список студентов в группе (только для режима редактирования)
   const { data: groupStudents, isLoading: isLoadingGroupStudents } =
     useGetGroupStudentsQuery(group?.id || 0, {
-      skip: mode !== "edit" || !group,
+      skip: mode !== "edit" || !group || !open,
+      refetchOnMountOrArgChange: true,
     });
 
   // Сбрасываем форму при открытии и заполняем данными при редактировании
@@ -56,20 +62,11 @@ const GroupFormModal = ({
       if (mode === "edit" && group) {
         form.setFieldsValue({
           title: group.title,
+          studentIds: groupStudents?.map((student) => student.id) || [],
         });
       }
     }
-  }, [open, form, group, mode]);
-
-  // Заполняем список выбранных студентов при редактировании группы
-  useEffect(() => {
-    if (mode === "edit" && groupStudents && groupStudents.length > 0) {
-      const studentIds = groupStudents.map((student) => student.id);
-      form.setFieldsValue({
-        studentIds: studentIds,
-      });
-    }
-  }, [groupStudents, form, mode]);
+  }, [open, form, group, mode, groupStudents]);
 
   const onFinish = async (values: FieldType) => {
     try {
@@ -175,15 +172,11 @@ const GroupFormModal = ({
           help="Select students to add to this group"
         >
           <Select
+            showSearch
             mode="multiple"
             placeholder="Select students"
-            loading={isLoadingStudents || isLoadingGroupStudents}
             optionFilterProp="children"
-            showSearch
-            style={{ width: "100%" }}
-            onChange={(values) =>
-              form.setFieldsValue({ studentIds: values as number[] })
-            }
+            loading={isLoadingStudents || isLoadingGroupStudents}
           >
             {students?.map((student: Student) => (
               <Select.Option key={student.id} value={student.id}>
