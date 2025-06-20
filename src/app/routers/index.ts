@@ -3,6 +3,7 @@ import { createBrowserRouter, redirect } from "react-router";
 import { Layout } from "@/widgets/layout";
 import Students from "@/pages/students";
 import Groups from "@/pages/groups";
+import Payments from "@/pages/payments";
 
 const router = createBrowserRouter([
   {
@@ -23,6 +24,10 @@ const router = createBrowserRouter([
       {
         path: "groups",
         Component: Groups,
+      },
+      {
+        path: "payments",
+        Component: Payments,
       },
     ],
   },

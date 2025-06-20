@@ -8,7 +8,7 @@ const tauriSqlBaseQuery = createTauriSqlBaseQuery("db.sqlite");
 export const paymentApi = createApi({
   reducerPath: "paymentApi",
   baseQuery: tauriSqlBaseQuery,
-  tagTypes: ["Payment"],
+  tagTypes: ["Payment", "StudentPayment"],
   endpoints: (builder) => ({
     getPayments: builder.query<Payment[], void>({
       query: () => ({
@@ -42,17 +42,6 @@ export const paymentApi = createApi({
       invalidatesTags: [{ type: "Payment", id: "LIST" }],
     }),
 
-    updatePayment: builder.mutation<void, Payment>({
-      query: (payment) => ({
-        sql: "UPDATE payment SET date = ?, amount = ? WHERE id = ?",
-        args: [payment.date, payment.amount, payment.id],
-      }),
-      invalidatesTags: (_, __, { id }) => [
-        { type: "Payment", id },
-        { type: "Payment", id: "LIST" },
-      ],
-    }),
-
     deletePayment: builder.mutation<void, number>({
       query: (id) => ({
         sql: "DELETE FROM payment WHERE id = ?",
@@ -73,6 +62,36 @@ export const paymentApi = createApi({
       }),
     }),
 
+    getPaymentStudents: builder.query<
+      { paymentId: number; studentId: number; fullname: string }[],
+      void
+    >({
+      query: () => ({
+        sql: `
+          SELECT sp.payment_id, sp.student_id, s.fullname 
+          FROM student_payment sp
+          JOIN student s ON sp.student_id = s.id
+        `,
+      }),
+      transformResponse: (response: any[]) => {
+        return response.map((item) => ({
+          paymentId: item.payment_id,
+          studentId: item.student_id,
+          fullname: item.fullname,
+        }));
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map(({ paymentId }) => ({
+                type: "StudentPayment" as const,
+                id: paymentId,
+              })),
+              { type: "StudentPayment", id: "LIST" },
+            ]
+          : [{ type: "StudentPayment", id: "LIST" }],
+    }),
+
     addPaymentToStudent: builder.mutation<
       void,
       { studentId: number; paymentId: number }
@@ -84,6 +103,8 @@ export const paymentApi = createApi({
       invalidatesTags: (_, __, { paymentId }) => [
         { type: "Payment", id: paymentId },
         { type: "Payment", id: "LIST" },
+        { type: "StudentPayment", id: paymentId },
+        { type: "StudentPayment", id: "LIST" },
       ],
     }),
 
@@ -99,31 +120,80 @@ export const paymentApi = createApi({
       ) {
         // Используем транзакцию для создания платежа и связывания его со студентом
         try {
-          const paymentResult = await baseQuery({
-            sql: "INSERT INTO payment (date, amount) VALUES (?, ?) RETURNING id",
-            args: [payment.date, payment.amount],
-            useTransaction: true,
+          // Начинаем транзакцию
+          await baseQuery({
+            sql: "BEGIN TRANSACTION",
           });
 
-          if (paymentResult.error) return { error: paymentResult.error };
+          try {
+            // Создаем платеж
+            const paymentResult = await baseQuery({
+              sql: "INSERT INTO payment (date, amount) VALUES (?, ?) RETURNING id",
+              args: [payment.date, payment.amount],
+            });
 
-          const paymentId = (paymentResult.data as any).lastInsertId;
+            if (paymentResult.error) {
+              // Отменяем транзакцию при ошибке
+              await baseQuery({
+                sql: "ROLLBACK",
+              });
+              return { error: paymentResult.error };
+            }
 
-          const linkResult = await baseQuery({
-            sql: "INSERT INTO student_payment (student_id, payment_id) VALUES (?, ?)",
-            args: [studentId, paymentId],
-            useTransaction: true,
-          });
+            const paymentId = (paymentResult.data as any).lastInsertId;
 
-          if (linkResult.error) return { error: linkResult.error };
+            // Связываем платеж со студентом
+            const linkResult = await baseQuery({
+              sql: "INSERT INTO student_payment (student_id, payment_id) VALUES (?, ?)",
+              args: [studentId, paymentId],
+            });
 
-          // Возвращаем void вместо null для соответствия типу
-          return { data: undefined };
+            if (linkResult.error) {
+              // Отменяем транзакцию при ошибке
+              await baseQuery({
+                sql: "ROLLBACK",
+              });
+              return { error: linkResult.error };
+            }
+
+            // Завершаем транзакцию
+            await baseQuery({
+              sql: "COMMIT",
+            });
+
+            // Возвращаем void вместо null для соответствия типу
+            return { data: undefined };
+          } catch (innerError) {
+            // Отменяем транзакцию при любой ошибке
+            await baseQuery({
+              sql: "ROLLBACK",
+            });
+            return { error: innerError };
+          }
         } catch (error) {
           return { error };
         }
       },
-      invalidatesTags: () => [{ type: "Payment", id: "LIST" }],
+      invalidatesTags: () => [
+        { type: "Payment", id: "LIST" },
+        // Добавляем тег для обновления связей студентов с платежами
+        { type: "StudentPayment", id: "LIST" },
+      ],
+    }),
+
+    // Обновление платежа
+    updatePayment: builder.mutation<
+      void,
+      { id: number; date: string; amount: number }
+    >({
+      query: ({ id, date, amount }) => ({
+        sql: "UPDATE payment SET date = ?, amount = ? WHERE id = ?",
+        args: [date, amount, id],
+      }),
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: "Payment", id: id.toString() },
+        { type: "Payment", id: "LIST" },
+      ],
     }),
   }),
 });
@@ -132,9 +202,10 @@ export const {
   useGetPaymentsQuery,
   useGetPaymentByIdQuery,
   useCreatePaymentMutation,
-  useUpdatePaymentMutation,
   useDeletePaymentMutation,
   useGetStudentPaymentsQuery,
+  useGetPaymentStudentsQuery,
   useAddPaymentToStudentMutation,
   useCreateStudentPaymentMutation,
+  useUpdatePaymentMutation,
 } = paymentApi;

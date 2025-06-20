@@ -1,215 +1,230 @@
-import { useState } from "react";
-import { 
-  useGetPaymentsQuery, 
-  useCreatePaymentMutation,
+import { useState, useMemo } from "react";
+import {
+  Button,
+  Card,
+  DatePicker,
+  Flex,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Select,
+  Typography,
+} from "antd";
+import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+
+import {
+  useGetPaymentsQuery,
+  useCreateStudentPaymentMutation,
   useDeletePaymentMutation,
-  useAddPaymentToStudentMutation
-} from "../shared/api/paymentApi";
-import { useGetStudentsQuery } from "../shared/api/studentApi";
-import { Payment } from "../shared/types/models";
+  useGetPaymentStudentsQuery,
+} from "@/shared/api/paymentApi";
+import { useGetStudentsQuery } from "@/shared/api/studentApi";
+import { PaymentTable } from "@/widgets/payment-table";
+import { EditPaymentModal } from "@/features/payment/edit-payment-modal";
+import type { Payment } from "@/shared/types/models";
+
+const { Title } = Typography;
 
 const Payments = () => {
-  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
-  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
-  const [newPayment, setNewPayment] = useState<Omit<Payment, "id">>({
-    date: new Date().toISOString().split('T')[0],
-    amount: 0
-  });
-  
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [createForm] = Form.useForm();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   // RTK Query хуки
-  const { data: payments, isLoading: isLoadingPayments, error: paymentsError } = useGetPaymentsQuery();
-  const { data: students, isLoading: isLoadingStudents } = useGetStudentsQuery();
-  const [createPayment] = useCreatePaymentMutation();
-  const [deletePayment] = useDeletePaymentMutation();
-  const [addPaymentToStudent] = useAddPaymentToStudentMutation();
-  
+  const { data: payments = [], isLoading: isLoadingPayments } =
+    useGetPaymentsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const { data: students = [], isLoading: isLoadingStudents } =
+    useGetStudentsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const { data: paymentStudents = [] } = useGetPaymentStudentsQuery();
+  const [createStudentPayment, { isLoading: isCreatingStudentPayment }] =
+    useCreateStudentPaymentMutation();
+  const [deletePayment, { isLoading: isDeleting }] = useDeletePaymentMutation();
+
+  // Статус загрузки для создания платежа
+  const isCreating = isCreatingStudentPayment;
+
+  // Фильтрация платежей по поисковому запросу
+  const filteredPayments = useMemo(() => {
+    if (!searchQuery.trim()) return payments;
+
+    const lowerQuery = searchQuery.toLowerCase();
+    return payments.filter((payment) => {
+      return (
+        payment.date.toLowerCase().includes(lowerQuery) ||
+        payment.amount.toString().includes(lowerQuery)
+      );
+    });
+  }, [payments, searchQuery]);
+
   // Обработчики событий
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNewPayment(prev => ({ 
-      ...prev, 
-      [name]: name === "amount" ? parseFloat(value) : value 
-    }));
-  };
-  
-  const handleCreatePayment = async () => {
+  const handleCreatePayment = async (values: any) => {
     try {
-      await createPayment(newPayment);
-      setNewPayment({
-        date: new Date().toISOString().split('T')[0],
-        amount: 0
+      const paymentData = {
+        date: values.date.format("YYYY-MM-DD"),
+        amount: values.amount,
+      };
+
+      // Создаем платеж и сразу привязываем его к студенту
+      await createStudentPayment({
+        studentId: values.studentId,
+        payment: paymentData,
       });
+      message.success("Payment successfully created and linked to student");
+
+      createForm.resetFields();
     } catch (error) {
       console.error("Error creating payment:", error);
+      message.error("Failed to create payment");
     }
   };
-  
+
   const handleDeletePayment = async (id: number) => {
     try {
       await deletePayment(id);
-      if (selectedPaymentId === id) {
-        setSelectedPaymentId(null);
+      message.success("Payment successfully deleted");
+
+      if (selectedPayment?.id === id) {
+        setSelectedPayment(null);
       }
     } catch (error) {
       console.error("Error deleting payment:", error);
+      message.error("Failed to delete payment");
     }
   };
-  
-  const handleAddPaymentToStudent = async () => {
-    if (!selectedPaymentId || !selectedStudentId) return;
-    
-    try {
-      await addPaymentToStudent({
-        studentId: selectedStudentId,
-        paymentId: selectedPaymentId
-      });
-      
-      // Сбросить выбор после добавления
-      setSelectedPaymentId(null);
-      setSelectedStudentId(null);
-    } catch (error) {
-      console.error("Error adding payment to student:", error);
-    }
+
+  const handleSelectPayment = (payment: Payment) => {
+    setSelectedPayment(payment);
   };
-  
-  if (isLoadingPayments) return <div>Загрузка платежей...</div>;
-  if (paymentsError) return <div>Ошибка: {JSON.stringify(paymentsError)}</div>;
-  
+
+  // Обработчик редактирования платежа
+  const handleEditPayment = (payment: Payment) => {
+    setEditingPayment(payment);
+    setIsEditModalOpen(true);
+  };
+
+  // Получение ID студента, связанного с платежом
+  const getStudentIdForPayment = (paymentId: number): number | null => {
+    const relation = paymentStudents.find((ps) => ps.paymentId === paymentId);
+    return relation ? relation.studentId : null;
+  };
+
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Платежи</h1>
-      
-      {/* Форма создания платежа */}
-      <div className="mb-6 p-4 bg-gray-100 rounded">
-        <h2 className="text-lg font-semibold mb-2">Добавить новый платеж</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Дата</label>
-            <input
-              type="date"
+    <Flex vertical style={{ width: "100%", padding: "16px", display: "flex" }}>
+      <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
+        <Title level={2}>Payments</Title>
+        <Input.Search
+          placeholder="Search payments"
+          allowClear
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ width: 300 }}
+        />
+      </Flex>
+
+      <Flex gap={16} style={{ marginBottom: 16 }}>
+        <Card
+          title="Create New Payment"
+          style={{ width: "100%" }}
+          variant="borderless"
+        >
+          <Form
+            form={createForm}
+            layout="vertical"
+            onFinish={handleCreatePayment}
+            initialValues={{ date: dayjs(), amount: 0 }}
+          >
+            <Form.Item
               name="date"
-              value={newPayment.date}
-              onChange={handleInputChange}
-              className="w-full p-2 border rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Сумма</label>
-            <input
-              type="number"
+              label="Date"
+              rules={[{ required: true, message: "Please select a date" }]}
+            >
+              <DatePicker style={{ width: "100%" }} />
+            </Form.Item>
+
+            <Form.Item
               name="amount"
-              value={newPayment.amount}
-              onChange={handleInputChange}
-              className="w-full p-2 border rounded"
-            />
-          </div>
-        </div>
-        <button
-          onClick={handleCreatePayment}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-        >
-          Добавить платеж
-        </button>
-      </div>
-      
-      {/* Привязка платежа к студенту */}
-      <div className="mb-6 p-4 bg-gray-100 rounded">
-        <h2 className="text-lg font-semibold mb-2">Привязать платеж к студенту</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Выберите платеж</label>
-            <select
-              value={selectedPaymentId || ""}
-              onChange={(e) => setSelectedPaymentId(Number(e.target.value) || null)}
-              className="w-full p-2 border rounded"
+              label="Amount"
+              rules={[{ required: true, message: "Please enter an amount" }]}
             >
-              <option value="">-- Выберите платеж --</option>
-              {payments?.map(payment => (
-                <option key={payment.id} value={payment.id}>
-                  {payment.date} - {payment.amount} руб.
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Выберите студента</label>
-            <select
-              value={selectedStudentId || ""}
-              onChange={(e) => setSelectedStudentId(Number(e.target.value) || null)}
-              className="w-full p-2 border rounded"
-              disabled={isLoadingStudents}
+              <InputNumber
+                style={{ width: "100%" }}
+                precision={2}
+                min={0}
+                step={100}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="studentId"
+              label="Student"
+              tooltip="Select a student to link this payment"
+              rules={[{ required: true, message: "Please select a student" }]}
             >
-              <option value="">-- Выберите студента --</option>
-              {students?.map(student => (
-                <option key={student.id} value={student.id}>
-                  {student.fullname}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <button
-          onClick={handleAddPaymentToStudent}
-          disabled={!selectedPaymentId || !selectedStudentId}
-          className={`px-4 py-2 rounded ${
-            !selectedPaymentId || !selectedStudentId
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-blue-500 hover:bg-blue-600 text-white'
-          }`}
-        >
-          Привязать платеж к студенту
-        </button>
-      </div>
-      
-      {/* Список платежей */}
-      <div className="bg-gray-100 p-4 rounded">
-        <h2 className="text-lg font-semibold mb-2">Список платежей</h2>
-        {payments && payments.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
-              <thead className="bg-gray-200">
-                <tr>
-                  <th className="py-2 px-4 text-left">ID</th>
-                  <th className="py-2 px-4 text-left">Дата</th>
-                  <th className="py-2 px-4 text-left">Сумма</th>
-                  <th className="py-2 px-4 text-left">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((payment: Payment) => (
-                  <tr 
-                    key={payment.id} 
-                    className={`border-t ${selectedPaymentId === payment.id ? 'bg-blue-50' : ''}`}
-                  >
-                    <td className="py-2 px-4">{payment.id}</td>
-                    <td className="py-2 px-4">{payment.date}</td>
-                    <td className="py-2 px-4">{payment.amount} руб.</td>
-                    <td className="py-2 px-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSelectedPaymentId(payment.id)}
-                          className={`text-blue-500 hover:text-blue-700 ${selectedPaymentId === payment.id ? 'font-bold' : ''}`}
-                        >
-                          Выбрать
-                        </button>
-                        <button
-                          onClick={() => handleDeletePayment(payment.id)}
-                          className="text-red-500 hover:text-red-700 ml-2"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p>Нет доступных платежей</p>
-        )}
-      </div>
-    </div>
+              <Select
+                placeholder="Select student"
+                loading={isLoadingStudents}
+                disabled={isLoadingStudents}
+                options={students.map((student) => ({
+                  value: student.id,
+                  label: student.fullname,
+                }))}
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<PlusOutlined />}
+                loading={isCreating}
+                block
+              >
+                Create Payment
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </Flex>
+
+      <Card title="Payment List" variant="borderless">
+        <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
+          <Typography.Title level={5} style={{ margin: 0 }}>
+            {filteredPayments.length} payments found
+          </Typography.Title>
+          
+          <Input
+            placeholder="Search payments"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ width: 300 }}
+            suffix={<SearchOutlined />}
+            allowClear
+          />
+        </Flex>
+        
+        <PaymentTable
+          payments={filteredPayments}
+          isLoading={isLoadingPayments || isDeleting}
+          onDeletePayment={handleDeletePayment}
+          onSelectPayment={handleSelectPayment}
+          onEditPayment={handleEditPayment}
+        />
+        
+        {/* Модальное окно редактирования платежа */}
+        <EditPaymentModal
+          payment={editingPayment}
+          studentId={editingPayment ? getStudentIdForPayment(editingPayment.id) : null}
+          open={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingPayment(null);
+          }}
+        />
+      </Card>
+    </Flex>
   );
 };
 
