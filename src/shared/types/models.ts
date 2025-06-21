@@ -4,11 +4,13 @@ export interface Student {
   phone_number: string;
   payment_due: string;
   address: string | null;
+  created_at: string;
 }
 
 export interface Group {
   id: number;
   title: string;
+  created_at: string;
 }
 
 export interface Payment {

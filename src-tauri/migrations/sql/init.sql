@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS group_entity (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL
+  title TEXT NOT NULL,
+  created_at DATETIME DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS student (
@@ -8,7 +9,8 @@ CREATE TABLE IF NOT EXISTS student (
   fullname TEXT NOT NULL,
   phone_number TEXT NOT NULL,
   payment_due TEXT NOT NULL,
-  address TEXT
+  address TEXT,
+  created_at DATETIME DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS student_group (

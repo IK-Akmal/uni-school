@@ -1,11 +1,18 @@
 import type { TableColumnsType } from "antd";
-import { Button, Popconfirm, Space } from "antd";
+import { Button, Popconfirm, Space, Typography } from "antd";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import {
   EditOutlined,
   DeleteOutlined,
   DollarOutlined,
 } from "@ant-design/icons";
 import type { Student } from "@/shared/types/models";
+
+// Регистрируем плагины для работы с часовыми поясами
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export const rowKey = (row: Student) => row.id;
 
@@ -31,6 +38,23 @@ export const getColumns = (
     title: "Address",
     dataIndex: "address",
     ellipsis: true,
+  },
+  {
+    title: "Created At",
+    dataIndex: "created_at",
+    ellipsis: true,
+    render: (text: string) => {
+      return (
+        <Typography.Text>
+          {text ? dayjs.utc(text).local().format("MM-DD-YYYY HH:mm") : "—"}
+        </Typography.Text>
+      );
+    },
+    sorter: (a, b) => {
+      if (!a.created_at) return -1;
+      if (!b.created_at) return 1;
+      return dayjs(a.created_at).unix() - dayjs(b.created_at).unix();
+    },
   },
   {
     title: "Actions",
