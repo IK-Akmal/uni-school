@@ -34,7 +34,7 @@ const CreateStudentModal = ({
   const onFinish = async (values: FieldType) => {
     try {
       // Проверяем обязательные поля
-      if (!values.fullname || !values.phone_number) {
+      if (!values.fullname || !values.phone_number || !values.payment_due) {
         message.error("Please fill in all required fields");
         return;
       }
@@ -43,7 +43,7 @@ const CreateStudentModal = ({
       const student = {
         fullname: values.fullname,
         phone_number: values.phone_number,
-        payment_due: values.payment_due || "0",
+        payment_due: values.payment_due,
         address: values.address || "",
       };
 

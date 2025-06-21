@@ -1,6 +1,11 @@
 import React from "react";
 import { Row, Col, Divider, Spin, Typography } from "antd";
-import { useGetMonthlyStudentStatsQuery, useGetMonthlyGroupStatsQuery, useGetMonthlyPaymentStatsQuery, useGetDashboardStatsQuery } from "@/shared/api/statisticsApi";
+import {
+  useGetMonthlyStudentStatsQuery,
+  useGetMonthlyGroupStatsQuery,
+  useGetMonthlyPaymentStatsQuery,
+  useGetDashboardStatsQuery,
+} from "@/shared/api/statisticsApi";
 import { MonthlyChart } from "./monthly-chart";
 import { PaymentChart } from "./payment-chart";
 import { DashboardStatsCards } from "./dashboard-stats";
@@ -10,10 +15,26 @@ const { Title } = Typography;
 
 export const Dashboard: React.FC = () => {
   // Загружаем данные для дашборда
-  const { data: dashboardStats, isLoading: isLoadingStats } = useGetDashboardStatsQuery();
-  const { data: studentStats, isLoading: isLoadingStudents } = useGetMonthlyStudentStatsQuery();
-  const { data: groupStats, isLoading: isLoadingGroups } = useGetMonthlyGroupStatsQuery();
-  const { data: paymentStats, isLoading: isLoadingPayments } = useGetMonthlyPaymentStatsQuery();
+  const { data: dashboardStats, isLoading: isLoadingStats } =
+    useGetDashboardStatsQuery(undefined, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
+  const { data: studentStats, isLoading: isLoadingStudents } =
+    useGetMonthlyStudentStatsQuery(undefined, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
+  const { data: groupStats, isLoading: isLoadingGroups } =
+    useGetMonthlyGroupStatsQuery(undefined, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
+  const { data: paymentStats, isLoading: isLoadingPayments } =
+    useGetMonthlyPaymentStatsQuery(undefined, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
 
   return (
     <div>
@@ -25,12 +46,12 @@ export const Dashboard: React.FC = () => {
           <OverduePaymentsAlert />
         </Col>
       </Row>
-      
+
       <Divider orientation="left">General Statistics</Divider>
       <DashboardStatsCards stats={dashboardStats} loading={isLoadingStats} />
-      
+
       <Divider orientation="left">Statistics for the Last 6 Months</Divider>
-      
+
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
           {isLoadingStudents ? (

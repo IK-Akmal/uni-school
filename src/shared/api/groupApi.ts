@@ -1,6 +1,9 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
-import { createTauriSqlBaseQuery } from "./tauriSqlBaseQuery";
-import { Group, Student } from "../types/models";
+import { type QueryResult } from "@tauri-apps/plugin-sql";
+
+import type { Group, Student } from "../types/models";
+
+import { createTauriSqlBaseQuery, SqlOperationType } from "./tauriSqlBaseQuery";
 
 // Создаем базовый запрос с именем базы данных
 const tauriSqlBaseQuery = createTauriSqlBaseQuery("db.sqlite");
@@ -13,6 +16,7 @@ export const groupApi = createApi({
     getGroups: builder.query<Group[], void>({
       query: () => ({
         sql: "SELECT * FROM group_entity",
+        operationType: SqlOperationType.SELECT,
       }),
       providesTags: (result) =>
         result
@@ -27,17 +31,88 @@ export const groupApi = createApi({
       query: (id) => ({
         sql: "SELECT * FROM group_entity WHERE id = ?",
         args: [id],
+        operationType: SqlOperationType.SELECT,
       }),
-      transformResponse: (response: Group[]) => response[0],
+      transformResponse: (response: Group[] | any) => {
+        return Array.isArray(response) ? response[0] : response;
+      },
       providesTags: (_, __, id) => [{ type: "Group", id }],
     }),
 
-    createGroup: builder.mutation<{ id: number }, Omit<Group, "id">>({
+    createGroup: builder.mutation<
+      QueryResult,
+      Omit<Group, "id" | "created_at">
+    >({
       query: (group) => ({
         sql: "INSERT INTO group_entity (title) VALUES (?) RETURNING id",
         args: [group.title],
+        operationType: SqlOperationType.INSERT,
       }),
-      transformResponse: (response: { id: number }[]) => response[0],
+      invalidatesTags: [{ type: "Group", id: "LIST" }],
+    }),
+
+    createGroupWithStudents: builder.mutation<
+      QueryResult,
+      { title: string; studentIds: number[] }
+    >({
+      async queryFn(
+        { title, studentIds },
+        _queryApi,
+        _extraOptions,
+        baseQuery
+      ) {
+        try {
+          // Создаем группу
+          const createResult = await baseQuery({
+            sql: "INSERT INTO group_entity (title) VALUES (?) RETURNING id",
+            args: [title],
+            operationType: SqlOperationType.INSERT,
+          });
+
+          if (createResult.error) return { error: createResult.error };
+
+          // Получаем ID новой группы
+          const data = createResult.data as any;
+          let newGroupId;
+          
+          if (Array.isArray(data)) {
+            // Если это массив (результат RETURNING)
+            newGroupId = data[0]?.id;
+          } else if (data && typeof data === 'object') {
+            // Если это SqlExecuteResult
+            newGroupId = data.lastInsertId || data.lastInsertRowid;
+          }
+
+          if (!newGroupId) {
+            return { error: { message: "Failed to get new group ID" } };
+          }
+
+          // Если есть студенты, добавляем их в группу
+          if (studentIds && studentIds.length > 0) {
+            for (const studentId of studentIds) {
+              const insertResult = await baseQuery({
+                sql: "INSERT INTO student_group (student_id, group_id) VALUES (?, ?)",
+                args: [studentId, newGroupId],
+                useTransaction: true,
+                operationType: SqlOperationType.INSERT,
+              });
+
+              if (insertResult.error) return { error: insertResult.error };
+            }
+          }
+
+          // Возвращаем результат с ID новой группы
+          return {
+            data: {
+              rowsAffected: studentIds.length + 1, // группа + студенты
+              lastInsertId: newGroupId,
+              lastInsertRowid: newGroupId,
+            },
+          };
+        } catch (error) {
+          return { error: { message: "Failed to create group with students" } };
+        }
+      },
       invalidatesTags: [{ type: "Group", id: "LIST" }],
     }),
 
@@ -45,6 +120,7 @@ export const groupApi = createApi({
       query: (group) => ({
         sql: "UPDATE group_entity SET title = ? WHERE id = ?",
         args: [group.title, group.id],
+        operationType: SqlOperationType.UPDATE,
       }),
       invalidatesTags: (_, __, { id }) => [
         { type: "Group", id },
@@ -56,6 +132,7 @@ export const groupApi = createApi({
       query: (id) => ({
         sql: "DELETE FROM group_entity WHERE id = ?",
         args: [id],
+        operationType: SqlOperationType.DELETE,
       }),
       invalidatesTags: [{ type: "Group", id: "LIST" }],
     }),
@@ -69,6 +146,7 @@ export const groupApi = createApi({
           WHERE sg.group_id = ?
         `,
         args: [groupId],
+        operationType: SqlOperationType.SELECT,
       }),
     }),
 
@@ -80,6 +158,7 @@ export const groupApi = createApi({
         sql: "INSERT INTO student_group (student_id, group_id) VALUES (?, ?)",
         args: [studentId, groupId],
         useTransaction: true,
+        operationType: SqlOperationType.INSERT,
       }),
       invalidatesTags: (_, __, { groupId }) => [
         { type: "Group", id: groupId },
@@ -94,6 +173,7 @@ export const groupApi = createApi({
       query: ({ studentId, groupId }) => ({
         sql: "DELETE FROM student_group WHERE student_id = ? AND group_id = ?",
         args: [studentId, groupId],
+        operationType: SqlOperationType.DELETE,
       }),
       invalidatesTags: (_, __, { groupId }) => [
         { type: "Group", id: groupId },
@@ -103,7 +183,7 @@ export const groupApi = createApi({
 
     updateGroupWithStudents: builder.mutation<
       void,
-      { group: Group; studentIds?: number[] }
+      { group: Omit<Group, "created_at">; studentIds?: number[] }
     >({
       async queryFn(
         { group, studentIds },
@@ -118,6 +198,7 @@ export const groupApi = createApi({
             sql: "UPDATE group_entity SET title = ? WHERE id = ?",
             args: [group.title, group.id],
             useTransaction: true,
+            operationType: SqlOperationType.UPDATE,
           });
 
           if (updateResult.error) return { error: updateResult.error };
@@ -129,6 +210,7 @@ export const groupApi = createApi({
               sql: "DELETE FROM student_group WHERE group_id = ?",
               args: [group.id],
               useTransaction: true,
+              operationType: SqlOperationType.DELETE,
             });
 
             if (deleteResult.error) return { error: deleteResult.error };
@@ -139,7 +221,7 @@ export const groupApi = createApi({
                 const insertResult = await baseQuery({
                   sql: "INSERT INTO student_group (student_id, group_id) VALUES (?, ?)",
                   args: [studentId, group.id],
-                  useTransaction: true,
+                  operationType: SqlOperationType.INSERT,
                 });
 
                 if (insertResult.error) return { error: insertResult.error };
@@ -164,6 +246,7 @@ export const {
   useGetGroupsQuery,
   useGetGroupByIdQuery,
   useCreateGroupMutation,
+  useCreateGroupWithStudentsMutation,
   useUpdateGroupMutation,
   useDeleteGroupMutation,
   useGetGroupStudentsQuery,

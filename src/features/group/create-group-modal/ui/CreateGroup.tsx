@@ -3,10 +3,7 @@ import { useEffect } from "react";
 
 import { useGetStudentsQuery } from "@/shared/api/studentApi";
 import { GroupForm } from "@/shared/components/group-form";
-import {
-  useCreateGroupMutation,
-  useAddStudentToGroupMutation,
-} from "@/shared/api/groupApi";
+import { useCreateGroupWithStudentsMutation } from "@/shared/api/groupApi";
 
 import type { CreateGroupModalProps } from "./CreateGroup.types";
 import type { FieldType } from "@/shared/components/group-form";
@@ -24,12 +21,8 @@ const CreateGroupModal = ({
     refetchOnMountOrArgChange: true,
   });
 
-  // Используем мутации для создания группы и добавления студентов
-  const [createGroup, { isLoading: isCreating }] = useCreateGroupMutation();
-  const [addStudentToGroup, { isLoading: isAddingStudents }] =
-    useAddStudentToGroupMutation();
-
-  const isLoading = isCreating || isAddingStudents;
+  // Используем мутацию для создания группы с студентами
+  const [createGroupWithStudents, { isLoading }] = useCreateGroupWithStudentsMutation();
 
   // Сбрасываем форму при открытии/закрытии
   useEffect(() => {
@@ -46,28 +39,13 @@ const CreateGroupModal = ({
         return;
       }
 
-      // Создаем группу
-      const createResult = await createGroup({
+      // Создаем группу с студентами в одной транзакции
+      await createGroupWithStudents({
         title: values.title,
+        studentIds: values.studentIds || [],
       }).unwrap();
 
-      const newGroupId = createResult?.id;
-
-      // Если выбраны студенты и есть ID новой группы
-      if (newGroupId && values.studentIds && values.studentIds.length > 0) {
-        // Добавляем выбранных студентов в группу атомарно
-        const addPromises = values.studentIds.map(studentId => 
-          addStudentToGroup({
-            groupId: newGroupId,
-            studentId: studentId,
-          })
-        );
-        
-        await Promise.all(addPromises);
-      }
-
       message.success("Group successfully created");
-
       form.resetFields();
 
       if (onSuccess) onSuccess();
