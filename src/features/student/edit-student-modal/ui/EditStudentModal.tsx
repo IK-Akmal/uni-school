@@ -63,7 +63,7 @@ const EditStudentModal = ({
       const studentData = {
         fullname: values.fullname,
         phone_number: values.phone_number,
-        payment_due: values.payment_due || "0",
+        payment_due: typeof values.payment_due === 'string' ? parseFloat(values.payment_due) || 0 : values.payment_due || 0,
         address: values.address || "",
       };
 
@@ -72,9 +72,10 @@ const EditStudentModal = ({
         await updateStudentWithGroup({
           student: {
             id: student.id,
+            created_at: student.created_at,
             ...studentData,
           },
-          groupIds: values.groupIds,
+          groupIds: values.groupIds || [],
         });
         message.success("Student successfully updated");
       }

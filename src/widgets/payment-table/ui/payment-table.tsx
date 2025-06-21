@@ -30,7 +30,9 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
   const studentsByPaymentId = useMemo(() => {
     const map: Record<number, string> = {};
     paymentStudents.forEach((item) => {
-      map[item.paymentId] = item.fullname;
+      if (item.payment_id) {
+        map[item.payment_id] = item.fullname;
+      }
     });
     return map;
   }, [paymentStudents]);

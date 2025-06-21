@@ -76,7 +76,7 @@ const GroupFormModal = ({
         const createResult = await createGroup({
           title: values.title,
         }).unwrap();
-        const newGroupId = createResult?.id;
+        const newGroupId = createResult?.lastInsertId;
 
         // Если выбраны студенты и есть ID новой группы
         if (values.studentIds && values.studentIds.length > 0 && newGroupId) {
@@ -94,7 +94,11 @@ const GroupFormModal = ({
       // Обновление существующей группы
       else if (mode === "edit" && group) {
         // Обновляем данные группы
-        await updateGroup({ id: group.id, title: values.title });
+        await updateGroup({ 
+          id: group.id, 
+          title: values.title,
+          created_at: group.created_at
+        });
 
         // Обновляем список студентов в группе
         if (groupStudents && values.studentIds) {

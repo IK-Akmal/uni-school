@@ -108,8 +108,8 @@ const Payments = () => {
 
   // Получение ID студента, связанного с платежом
   const getStudentIdForPayment = (paymentId: number): number | null => {
-    const relation = paymentStudents.find((ps) => ps.paymentId === paymentId);
-    return relation ? relation.studentId : null;
+    const relation = paymentStudents.find((ps) => ps.payment_id === paymentId);
+    return relation ? relation.student_id : null;
   };
 
   return (
