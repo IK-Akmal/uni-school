@@ -1,6 +1,11 @@
-import { DollarOutlined, TeamOutlined, UserOutlined } from "@ant-design/icons";
+import { DollarOutlined, TeamOutlined, UserOutlined, HomeOutlined } from "@ant-design/icons";
 
 export const menuItems = [
+  {
+    key: "/",
+    icon: <HomeOutlined />,
+    label: "Home",
+  },
   {
     key: "/students",
     icon: <UserOutlined />,

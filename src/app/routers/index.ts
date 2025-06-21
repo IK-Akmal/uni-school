@@ -1,6 +1,7 @@
-import { createBrowserRouter, redirect } from "react-router";
+import { createBrowserRouter } from "react-router";
 
 import { Layout } from "@/widgets/layout";
+import Home from "@/pages/home";
 import Students from "@/pages/students";
 import Groups from "@/pages/groups";
 import Payments from "@/pages/payments";
@@ -12,9 +13,7 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        loader: () => {
-          return redirect("/students");
-        },
+        Component: Home,
       },
 
       {
