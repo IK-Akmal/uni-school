@@ -31,6 +31,15 @@ export interface DashboardStats {
   groupsThisMonth: number;
   paymentsThisMonth: number;
   paymentAmountThisMonth: number;
+  overduePaymentsCount: number;
+}
+
+export interface OverduePaymentStudent {
+  id: number;
+  fullname: string;
+  payment_due: number;
+  phone_number: string;
+  days_overdue: number;
 }
 
 export const statisticsApi = createApi({
@@ -108,12 +117,45 @@ export const statisticsApi = createApi({
             (SELECT COUNT(*) FROM student WHERE created_at >= date('now', 'start of month')) as studentsThisMonth,
             (SELECT COUNT(*) FROM group_entity WHERE created_at >= date('now', 'start of month')) as groupsThisMonth,
             (SELECT COUNT(*) FROM payment WHERE date >= date('now', 'start of month')) as paymentsThisMonth,
-            (SELECT COALESCE(SUM(amount), 0) FROM payment WHERE date >= date('now', 'start of month')) as paymentAmountThisMonth
+            (SELECT COALESCE(SUM(amount), 0) FROM payment WHERE date >= date('now', 'start of month')) as paymentAmountThisMonth,
+            (SELECT COUNT(*) FROM student WHERE date(payment_due) < date('now')) as overduePaymentsCount
         `,
       }),
       transformResponse: (response: DashboardStats[]) => {
         return response[0];
       },
+    }),
+    
+    // Получение списка студентов с просроченными платежами
+    getOverduePaymentStudents: builder.query<OverduePaymentStudent[], void>({
+      query: () => ({
+        sql: `
+          SELECT 
+            id,
+            fullname,
+            payment_due,
+            phone_number,
+            CASE
+              -- Если день платежа больше чем количество дней в текущем месяце
+              WHEN payment_due > (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day')))
+                THEN strftime('%d', 'now') -- В этом случае платеж должен быть в последний день месяца
+              -- Если текущий день месяца меньше дня платежа
+              WHEN strftime('%d', 'now') < payment_due THEN 0
+              -- Иначе вычисляем количество дней просрочки
+              ELSE strftime('%d', 'now') - payment_due
+            END as days_overdue
+          FROM student
+          WHERE 
+            -- Если день платежа больше чем количество дней в текущем месяце, то платеж должен быть в последний день месяца
+            (payment_due > (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day'))) AND
+             strftime('%d', 'now') = strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day')))
+            OR
+            -- Обычный случай - текущий день больше дня платежа
+            (payment_due <= (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day'))) AND
+             payment_due < strftime('%d', 'now'))
+          ORDER BY days_overdue DESC
+        `,
+      }),
     }),
   }),
 });
@@ -195,4 +237,5 @@ export const {
   useGetMonthlyGroupStatsQuery,
   useGetMonthlyPaymentStatsQuery,
   useGetDashboardStatsQuery,
+  useGetOverduePaymentStudentsQuery,
 } = statisticsApi;

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS student (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   fullname TEXT NOT NULL,
   phone_number TEXT NOT NULL,
-  payment_due TEXT NOT NULL,
+  payment_due INTEGER NOT NULL,
   address TEXT,
   created_at DATETIME DEFAULT (datetime('now'))
 );

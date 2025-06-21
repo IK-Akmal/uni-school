@@ -66,11 +66,21 @@ export const StudentForm = ({
         </Form.Item>
 
         <Form.Item<FieldType>
-          label="Payment Due"
+          label="Payment Due Day"
           name="payment_due"
-          initialValue="0"
+          initialValue="1"
+          rules={[
+            { required: true, message: "Please enter the payment due day" },
+            { type: "number", min: 1, max: 31, message: "Payment due day must be between 1 and 31" }
+          ]}
+          tooltip="Day of the month when payment is due (1-31)"
         >
-          <Input type="number" />
+          <Input 
+            type="number" 
+            min={1} 
+            max={31} 
+            placeholder="Enter a day between 1 and 31" 
+          />
         </Form.Item>
 
         <Form.Item<FieldType> label="Groups" name="groupIds">

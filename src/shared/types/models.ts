@@ -2,7 +2,7 @@ export interface Student {
   id: number;
   fullname: string;
   phone_number: string;
-  payment_due: string;
+  payment_due: number;
   address: string | null;
   created_at: string;
 }

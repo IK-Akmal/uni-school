@@ -1,14 +1,10 @@
-import React from 'react';
-import { Typography, Row, Col, Divider, Spin } from 'antd';
-import { 
-  useGetDashboardStatsQuery, 
-  useGetMonthlyStudentStatsQuery,
-  useGetMonthlyGroupStatsQuery,
-  useGetMonthlyPaymentStatsQuery
-} from '@/shared/api/statisticsApi';
-import { DashboardStatsCards } from './dashboard-stats';
-import { MonthlyChart } from './monthly-chart';
-import { PaymentChart } from './payment-chart';
+import React from "react";
+import { Row, Col, Divider, Spin, Typography } from "antd";
+import { useGetMonthlyStudentStatsQuery, useGetMonthlyGroupStatsQuery, useGetMonthlyPaymentStatsQuery, useGetDashboardStatsQuery } from "@/shared/api/statisticsApi";
+import { MonthlyChart } from "./monthly-chart";
+import { PaymentChart } from "./payment-chart";
+import { DashboardStatsCards } from "./dashboard-stats";
+import { OverduePaymentsAlert } from "./overdue-payments-alert";
 
 const { Title } = Typography;
 
@@ -21,7 +17,14 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div>
-      <Title level={2}>School Overview</Title>
+      <Row justify="space-between" align="middle">
+        <Col>
+          <Title level={2}>School Overview</Title>
+        </Col>
+        <Col>
+          <OverduePaymentsAlert />
+        </Col>
+      </Row>
       
       <Divider orientation="left">General Statistics</Divider>
       <DashboardStatsCards stats={dashboardStats} loading={isLoadingStats} />
