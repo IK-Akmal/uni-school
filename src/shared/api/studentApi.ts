@@ -162,10 +162,9 @@ export const studentApi = createApi({
         }
       },
       invalidatesTags: (_, __, { student }) => {
-        console.log({ student });
         return [
           { type: "Student", id: student.id },
-          // { type: "Student", id: "LIST" },
+          { type: "Student", id: "LIST" },
         ];
       },
     }),
