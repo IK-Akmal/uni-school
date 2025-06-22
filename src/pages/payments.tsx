@@ -28,11 +28,10 @@ import type { Payment } from "@/shared/types/models";
 const { Title } = Typography;
 
 const Payments = () => {
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [createForm] = Form.useForm();
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
 
   // RTK Query хуки
   const { data: payments = [], isLoading: isLoadingPayments } =
@@ -86,18 +85,10 @@ const Payments = () => {
     try {
       await deletePayment(id);
       message.success("Payment successfully deleted");
-
-      if (selectedPayment?.id === id) {
-        setSelectedPayment(null);
-      }
     } catch (error) {
       console.error("Error deleting payment:", error);
       message.error("Failed to delete payment");
     }
-  };
-
-  const handleSelectPayment = (payment: Payment) => {
-    setSelectedPayment(payment);
   };
 
   // Обработчик редактирования платежа
@@ -190,11 +181,15 @@ const Payments = () => {
       </Flex>
 
       <Card title="Payment List" variant="borderless">
-        <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
+        <Flex
+          justify="space-between"
+          align="center"
+          style={{ marginBottom: 16 }}
+        >
           <Typography.Title level={5} style={{ margin: 0 }}>
             {filteredPayments.length} payments found
           </Typography.Title>
-          
+
           <Input
             placeholder="Search payments"
             value={searchQuery}
@@ -204,19 +199,20 @@ const Payments = () => {
             allowClear
           />
         </Flex>
-        
+
         <PaymentTable
           payments={filteredPayments}
           isLoading={isLoadingPayments || isDeleting}
           onDeletePayment={handleDeletePayment}
-          onSelectPayment={handleSelectPayment}
           onEditPayment={handleEditPayment}
         />
-        
+
         {/* Модальное окно редактирования платежа */}
         <EditPaymentModal
           payment={editingPayment}
-          studentId={editingPayment ? getStudentIdForPayment(editingPayment.id) : null}
+          studentId={
+            editingPayment ? getStudentIdForPayment(editingPayment.id) : null
+          }
           open={isEditModalOpen}
           onClose={() => {
             setIsEditModalOpen(false);

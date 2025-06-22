@@ -4,7 +4,7 @@ import {
   SqlOperationType,
   SqlExecuteResult,
 } from "./tauriSqlBaseQuery";
-import { Payment } from "../types/models";
+import { Payment, PaymentStudent } from "../types/models";
 
 // Создаем базовый запрос с именем базы данных
 const tauriSqlBaseQuery = createTauriSqlBaseQuery("db.sqlite");
@@ -14,9 +14,20 @@ export const paymentApi = createApi({
   baseQuery: tauriSqlBaseQuery,
   tagTypes: ["Payment", "StudentPayment"],
   endpoints: (builder) => ({
-    getPayments: builder.query<Payment[], void>({
+    getPayments: builder.query<PaymentStudent[], void>({
       query: () => ({
-        sql: "SELECT * FROM payment ORDER BY date DESC",
+        sql: `SELECT
+                p.id,
+                p.date,
+                p.amount,
+                student.id AS student_id,
+                student.fullname AS student_fullname
+            FROM
+                payment p
+            JOIN student_payment sp ON p.id = sp.payment_id
+            JOIN
+                student ON sp.student_id = student.id 
+            ORDER BY p.date DESC`,
         operationType: SqlOperationType.SELECT,
       }),
       providesTags: (result) =>

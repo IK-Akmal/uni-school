@@ -1,41 +1,31 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Table, Space, Button, Popconfirm, Typography } from "antd";
+import React, { useState, useEffect } from "react";
+import {
+  Table,
+  Space,
+  Button,
+  Popconfirm,
+  Typography,
+  type TableProps,
+} from "antd";
+
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import type { TableProps } from "antd";
-import type { Payment } from "@/shared/types/models";
-import { useGetPaymentStudentsQuery } from "@/shared/api/paymentApi";
+
+import type { PaymentStudent } from "@/shared/types/models";
 
 interface PaymentTableProps {
-  payments: Payment[];
+  payments: PaymentStudent[];
   isLoading: boolean;
   onDeletePayment: (id: number) => void;
-  onSelectPayment: (payment: Payment) => void;
-  onEditPayment: (payment: Payment) => void;
+  onEditPayment: (payment: PaymentStudent) => void;
 }
 
 export const PaymentTable: React.FC<PaymentTableProps> = ({
   payments,
   isLoading,
   onDeletePayment,
-  onSelectPayment,
   onEditPayment,
 }) => {
   const [tableHeight, setTableHeight] = useState<number>(500);
-
-  // Получаем данные о студентах, связанных с платежами
-  const { data: paymentStudents = [], isLoading: isLoadingStudents } =
-    useGetPaymentStudentsQuery();
-
-  // Создаем словарь для быстрого поиска студента по id платежа
-  const studentsByPaymentId = useMemo(() => {
-    const map: Record<number, string> = {};
-    paymentStudents.forEach((item) => {
-      if (item.payment_id) {
-        map[item.payment_id] = item.fullname;
-      }
-    });
-    return map;
-  }, [paymentStudents]);
 
   // Устанавливаем динамическую высоту таблицы
   useEffect(() => {
@@ -53,7 +43,7 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     };
   }, []);
 
-  const columns: TableProps<Payment>["columns"] = [
+  const columns: TableProps<PaymentStudent>["columns"] = [
     {
       title: "ID",
       dataIndex: "id",
@@ -78,11 +68,7 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     {
       title: "Student",
       key: "student",
-      render: (_, record) => {
-        const studentName = studentsByPaymentId[record.id];
-        // Отладочная информация
-        return <Typography.Text>{studentName || "—"}</Typography.Text>;
-      },
+      dataIndex: "student_fullname",
     },
     {
       title: "Actions",
@@ -90,12 +76,9 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
       width: 150,
       render: (_, record) => (
         <Space size="middle">
-          <Button type="link" onClick={() => onSelectPayment(record)}>
-            Select
-          </Button>
-          <Button 
-            type="link" 
-            icon={<EditOutlined />} 
+          <Button
+            type="link"
+            icon={<EditOutlined />}
             onClick={() => onEditPayment(record)}
           >
             Edit
@@ -116,15 +99,12 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     },
   ];
 
-  // Общий статус загрузки
-  const loading = isLoading || isLoadingStudents;
-
   return (
     <Table
       dataSource={payments}
       columns={columns}
       rowKey="id"
-      loading={loading}
+      loading={isLoading}
       pagination={{
         pageSize: 10,
         position: ["bottomCenter"],

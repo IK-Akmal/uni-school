@@ -28,3 +28,8 @@ export interface StudentPayment {
   student_id: number;
   payment_id: number;
 }
+
+export interface PaymentStudent extends Payment {
+  student_id: number;
+  student_fullname: string;
+}
