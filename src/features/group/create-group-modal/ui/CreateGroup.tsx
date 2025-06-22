@@ -39,9 +39,15 @@ const CreateGroupModal = ({
         return;
       }
 
+      if (!values.course_price || values.course_price <= 0) {
+        message.error("Please enter a valid course price");
+        return;
+      }
+
       // Создаем группу с студентами в одной транзакции
       await createGroupWithStudents({
         title: values.title,
+        course_price: values.course_price,
         studentIds: values.studentIds || [],
       }).unwrap();
 

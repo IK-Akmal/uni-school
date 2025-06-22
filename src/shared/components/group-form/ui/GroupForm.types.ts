@@ -2,6 +2,7 @@ import type { FormInstance } from "antd";
 
 export interface FieldType {
   title: string;
+  course_price: number;
   studentIds?: number[];
 }
 

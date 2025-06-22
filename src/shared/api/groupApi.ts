@@ -44,8 +44,8 @@ export const groupApi = createApi({
       Omit<Group, "id" | "created_at">
     >({
       query: (group) => ({
-        sql: "INSERT INTO group_entity (title) VALUES (?) RETURNING id",
-        args: [group.title],
+        sql: "INSERT INTO group_entity (title, course_price) VALUES (?, ?) RETURNING id",
+        args: [group.title, group.course_price],
         operationType: SqlOperationType.INSERT,
       }),
       invalidatesTags: [{ type: "Group", id: "LIST" }],
@@ -53,10 +53,10 @@ export const groupApi = createApi({
 
     createGroupWithStudents: builder.mutation<
       QueryResult,
-      { title: string; studentIds: number[] }
+      { title: string; course_price: number; studentIds: number[] }
     >({
       async queryFn(
-        { title, studentIds },
+        { title, course_price, studentIds },
         _queryApi,
         _extraOptions,
         baseQuery
@@ -64,8 +64,8 @@ export const groupApi = createApi({
         try {
           // Создаем группу
           const createResult = await baseQuery({
-            sql: "INSERT INTO group_entity (title) VALUES (?) RETURNING id",
-            args: [title],
+            sql: "INSERT INTO group_entity (title, course_price) VALUES (?, ?) RETURNING id",
+            args: [title, course_price],
             operationType: SqlOperationType.INSERT,
           });
 
@@ -118,8 +118,8 @@ export const groupApi = createApi({
 
     updateGroup: builder.mutation<void, Group>({
       query: (group) => ({
-        sql: "UPDATE group_entity SET title = ? WHERE id = ?",
-        args: [group.title, group.id],
+        sql: "UPDATE group_entity SET title = ?, course_price = ? WHERE id = ?",
+        args: [group.title, group.course_price, group.id],
         operationType: SqlOperationType.UPDATE,
       }),
       invalidatesTags: (_, __, { id }) => [

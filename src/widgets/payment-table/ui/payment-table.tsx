@@ -61,7 +61,12 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
       dataIndex: "amount",
       key: "amount",
       render: (amount: number) => (
-        <Typography.Text>{amount.toFixed(2)}</Typography.Text>
+        <Typography.Text>
+          {new Intl.NumberFormat("uz", {
+            style: "currency",
+            currency: "sum",
+          }).format(amount)}
+        </Typography.Text>
       ),
       sorter: (a, b) => a.amount - b.amount,
     },
@@ -73,7 +78,6 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     {
       title: "Actions",
       key: "actions",
-      width: 150,
       render: (_, record) => (
         <Space size="middle">
           <Button
@@ -101,17 +105,17 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
 
   return (
     <Table
-      dataSource={payments}
-      columns={columns}
       rowKey="id"
+      columns={columns}
       loading={isLoading}
+      dataSource={payments}
       pagination={{
         pageSize: 10,
         position: ["bottomCenter"],
         showTotal: (total) => `Total ${total} payments`,
       }}
       scroll={{ y: tableHeight }}
-      size="middle"
+      // size="middle"
     />
   );
 };

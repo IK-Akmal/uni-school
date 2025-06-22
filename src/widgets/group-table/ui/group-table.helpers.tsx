@@ -23,6 +23,21 @@ export const getColumns = (
     key: "title",
   },
   {
+    title: "Course Price",
+    dataIndex: "course_price",
+    key: "course_price",
+    // width: 120,
+    render: (price: number) => (
+      <Typography.Text>
+        {new Intl.NumberFormat("uz", {
+          style: "currency",
+          currency: "sum",
+        }).format(price)}
+      </Typography.Text>
+    ),
+    sorter: (a, b) => (a.course_price || 0) - (b.course_price || 0),
+  },
+  {
     title: "Created At",
     dataIndex: "created_at",
     key: "created_at",

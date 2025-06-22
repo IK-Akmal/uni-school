@@ -1,4 +1,4 @@
-import { Drawer, Form, Input, Button, message, Select } from "antd";
+import { Drawer, Form, Input, Button, message, Select, InputNumber } from "antd";
 import { useEffect } from "react";
 
 import {
@@ -21,6 +21,7 @@ interface GroupFormModalProps {
 
 type FieldType = {
   title: string;
+  course_price: number;
   studentIds?: number[];
 };
 
@@ -62,6 +63,7 @@ const GroupFormModal = ({
       if (mode === "edit" && group) {
         form.setFieldsValue({
           title: group.title,
+          course_price: group.course_price,
           studentIds: groupStudents?.map((student) => student.id) || [],
         });
       }
@@ -75,6 +77,7 @@ const GroupFormModal = ({
         // Создаем группу
         const createResult = await createGroup({
           title: values.title,
+          course_price: values.course_price,
         }).unwrap();
         const newGroupId = createResult?.lastInsertId;
 
@@ -97,6 +100,7 @@ const GroupFormModal = ({
         await updateGroup({ 
           id: group.id, 
           title: values.title,
+          course_price: values.course_price,
           created_at: group.created_at
         });
 
@@ -168,6 +172,23 @@ const GroupFormModal = ({
           rules={[{ required: true, message: "Please input group title!" }]}
         >
           <Input />
+        </Form.Item>
+
+        <Form.Item<FieldType>
+          label="Course Price"
+          name="course_price"
+          rules={[
+            { required: true, message: "Please input course price!" },
+            { type: "number", min: 0, message: "Price must be a positive number" }
+          ]}
+        >
+          <InputNumber
+            style={{ width: "100%" }}
+            placeholder="Enter course price"
+            min={0}
+            precision={2}
+            addonBefore="$"
+          />
         </Form.Item>
 
         <Form.Item<FieldType>

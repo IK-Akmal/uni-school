@@ -1,4 +1,4 @@
-import { Button, Drawer, Form, Input, Select } from "antd";
+import { Button, Drawer, Form, Input, InputNumber, Select } from "antd";
 
 import type { FieldType, GroupFormProps } from "./GroupForm.types";
 
@@ -35,6 +35,23 @@ export const GroupForm = ({
           rules={[{ required: true, message: "Please enter the group title" }]}
         >
           <Input />
+        </Form.Item>
+
+        <Form.Item<FieldType>
+          label="Course Price"
+          name="course_price"
+          rules={[
+            { required: true, message: "Please enter the course price" },
+            { type: "number", min: 0, message: "Price must be a positive number" }
+          ]}
+        >
+          <InputNumber
+            style={{ width: "100%" }}
+            placeholder="Enter course price"
+            min={0}
+            precision={2}
+            addonBefore="$"
+          />
         </Form.Item>
 
         <Form.Item<FieldType> label="Students" name="studentIds">

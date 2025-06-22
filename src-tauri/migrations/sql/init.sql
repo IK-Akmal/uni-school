@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS group_entity (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
+  course_price REAL NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT (datetime('now'))
 );
 

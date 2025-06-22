@@ -10,6 +10,7 @@ export interface Student {
 export interface Group {
   id: number;
   title: string;
+  course_price: number;
   created_at: string;
 }
 
