@@ -20,7 +20,7 @@ import {
   useDeletePaymentMutation,
   useGetPaymentStudentsQuery,
 } from "@/shared/api/paymentApi";
-import { useGetStudentsQuery } from "@/shared/api/studentApi";
+import { useGetStudentsQuery, useGetStudentGroupsQuery } from "@/shared/api/studentApi";
 import { useGetGroupsQuery } from "@/shared/api/groupApi";
 import { PaymentTable } from "@/widgets/payment-table";
 import { EditPaymentModal } from "@/features/payment/edit-payment-modal";
@@ -28,11 +28,12 @@ import type { Payment } from "@/shared/types/models";
 
 const { Title } = Typography;
 
-const Payments = () => {
-  const [createForm] = Form.useForm();
+const Payments: React.FC = () => {
+  const [form] = Form.useForm();
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
 
   // RTK Query хуки
   const { data: payments = [], isLoading: isLoadingPayments } =
@@ -42,6 +43,13 @@ const Payments = () => {
   const { data: groups = [], isLoading: isLoadingGroups } = useGetGroupsQuery(
     undefined,
     { refetchOnMountOrArgChange: true }
+  );
+  const { data: studentGroups = [], isLoading: isLoadingStudentGroups } = useGetStudentGroupsQuery(
+    selectedStudentId!,
+    { 
+      skip: !selectedStudentId,
+      refetchOnMountOrArgChange: true 
+    }
   );
   const { data: paymentStudents = [] } = useGetPaymentStudentsQuery();
   const [createStudentPayment, { isLoading: isCreatingStudentPayment }] =
@@ -64,6 +72,16 @@ const Payments = () => {
     });
   }, [payments, searchQuery]);
 
+  // Обработчик изменения выбранного студента
+  const handleStudentChange = (studentId: number) => {
+    setSelectedStudentId(studentId);
+    // Сбрасываем выбор группы при смене студента
+    form.setFieldsValue({ groupId: null });
+  };
+
+  // Определяем какие группы показывать
+  const availableGroups = selectedStudentId ? studentGroups : groups;
+
   // Обработчики событий
   const handleCreatePayment = async (values: any) => {
     try {
@@ -85,7 +103,7 @@ const Payments = () => {
       });
       message.success("Payment successfully created and linked to student");
 
-      createForm.resetFields();
+      form.resetFields();
     } catch (error) {
       console.error("Error creating payment:", error);
       message.error("Failed to create payment");
@@ -127,7 +145,7 @@ const Payments = () => {
           variant="borderless"
         >
           <Form
-            form={createForm}
+            form={form}
             layout="vertical"
             onFinish={handleCreatePayment}
             initialValues={{ date: dayjs(), amount: 0 }}
@@ -163,6 +181,7 @@ const Payments = () => {
                 placeholder="Select student"
                 loading={isLoadingStudents}
                 disabled={isLoadingStudents}
+                onChange={handleStudentChange}
                 options={students.map((student) => ({
                   value: student.id,
                   label: student.fullname,
@@ -176,13 +195,14 @@ const Payments = () => {
               rules={[{ required: true, message: "Please select a group" }]}
             >
               <Select
-                placeholder="Select group"
-                loading={isLoadingGroups}
-                disabled={isLoadingGroups}
-                options={groups.map((group) => ({
+                placeholder={selectedStudentId ? "Select group from student's groups" : "Select student first"}
+                loading={isLoadingGroups || isLoadingStudentGroups}
+                disabled={isLoadingGroups || isLoadingStudentGroups || !selectedStudentId}
+                options={availableGroups.map((group) => ({
                   value: group.id,
                   label: group.title,
                 }))}
+                notFoundContent={selectedStudentId ? "No groups found for this student" : "Please select a student first"}
               />
             </Form.Item>
 
