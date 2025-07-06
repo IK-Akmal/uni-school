@@ -39,8 +39,10 @@ const Payments = () => {
     useGetPaymentsQuery(undefined, { refetchOnMountOrArgChange: true });
   const { data: students = [], isLoading: isLoadingStudents } =
     useGetStudentsQuery(undefined, { refetchOnMountOrArgChange: true });
-  const { data: groups = [], isLoading: isLoadingGroups } =
-    useGetGroupsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const { data: groups = [], isLoading: isLoadingGroups } = useGetGroupsQuery(
+    undefined,
+    { refetchOnMountOrArgChange: true }
+  );
   const { data: paymentStudents = [] } = useGetPaymentStudentsQuery();
   const [createStudentPayment, { isLoading: isCreatingStudentPayment }] =
     useCreateStudentPaymentMutation();
@@ -116,12 +118,6 @@ const Payments = () => {
     <Flex vertical style={{ width: "100%", padding: "16px", display: "flex" }}>
       <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
         <Title level={2}>Payments</Title>
-        <Input.Search
-          placeholder="Search payments"
-          allowClear
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ width: 300 }}
-        />
       </Flex>
 
       <Flex gap={16} style={{ marginBottom: 16 }}>
@@ -207,7 +203,9 @@ const Payments = () => {
             <Form.Item
               name="paymentPeriod"
               label="Payment Period"
-              rules={[{ required: true, message: "Please enter payment period" }]}
+              rules={[
+                { required: true, message: "Please enter payment period" },
+              ]}
             >
               <Input placeholder="e.g., 2024-01" />
             </Form.Item>
@@ -215,7 +213,9 @@ const Payments = () => {
             <Form.Item
               name="paymentType"
               label="Payment Type"
-              rules={[{ required: true, message: "Please select payment type" }]}
+              rules={[
+                { required: true, message: "Please select payment type" },
+              ]}
             >
               <Select
                 placeholder="Select payment type"
@@ -228,10 +228,7 @@ const Payments = () => {
               />
             </Form.Item>
 
-            <Form.Item
-              name="notes"
-              label="Notes"
-            >
+            <Form.Item name="notes" label="Notes">
               <Input.TextArea
                 rows={2}
                 placeholder="Optional notes about the payment"
