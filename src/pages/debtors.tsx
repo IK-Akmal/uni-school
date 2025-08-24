@@ -28,6 +28,7 @@ import {
 import {
   useGetOverduePaymentStudentsQuery,
   useGetUpcomingPaymentStudentsQuery,
+  useGetStudentMonthlyDebtsQuery,
 } from "@/shared/api/statisticsApi";
 import type { OverduePaymentStudent } from "../shared/api/statisticsApi";
 import type { ColumnsType } from "antd/es/table";
@@ -83,6 +84,31 @@ const Debtors: React.FC = () => {
       refetchOnFocus: true,
     }
   );
+  const {
+    data: monthlyDebts,
+    isLoading: isLoadingMonthlyDebts,
+    refetch: refetchMonthlyDebts,
+  } = useGetStudentMonthlyDebtsQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
+  });
+
+  // Функция для получения месячной суммы к оплате студента
+  const getStudentMonthlyAmount = (studentId: number): number => {
+    const studentDebt = monthlyDebts?.find(
+      (debt) => debt.student_id === studentId
+    );
+    return studentDebt?.total_monthly_amount || 0;
+  };
+
+  console.log({ monthlyDebts, debtors });
+
+  // Функция для обновления всех данных
+  const handleRefresh = () => {
+    refetch();
+    refetchUpcoming();
+    refetchMonthlyDebts();
+  };
 
   // Функция для объединения данных должников и upcoming payments
   const getCombinedStudents = (): CombinedPaymentStudent[] => {
@@ -266,6 +292,7 @@ const Debtors: React.FC = () => {
               handleCallStudent({
                 ...record,
                 days_overdue: record.days_overdue || 0,
+                remaining_amount: getStudentMonthlyAmount(record.id),
               })
             }
             title="Call student"
@@ -315,6 +342,45 @@ const Debtors: React.FC = () => {
       },
     },
     {
+      title: "Monthly Amount",
+      key: "monthly_amount",
+      align: "right",
+      width: 150,
+      sorter: (a: CombinedPaymentStudent, b: CombinedPaymentStudent) => {
+        const aAmount = getStudentMonthlyAmount(a.id);
+        const bAmount = getStudentMonthlyAmount(b.id);
+        return aAmount - bAmount;
+      },
+      render: (_, record: CombinedPaymentStudent) => {
+        const monthlyAmount = getStudentMonthlyAmount(record.id);
+        if (monthlyAmount === 0) {
+          return (
+            <Text type="secondary" style={{ fontStyle: "italic" }}>
+              No groups
+            </Text>
+          );
+        }
+        return (
+          <Tooltip title="Total monthly payment from all groups">
+            <Text
+              strong
+              style={{
+                fontSize: "14px",
+                color: "#52c41a",
+              }}
+            >
+              {new Intl.NumberFormat("uz", {
+                style: "currency",
+                currency: "sum",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(monthlyAmount)}
+            </Text>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: "Actions",
       key: "actions",
       align: "center",
@@ -329,6 +395,7 @@ const Debtors: React.FC = () => {
                 handleCallStudent({
                   ...record,
                   days_overdue: record.days_overdue || 0,
+                  remaining_amount: getStudentMonthlyAmount(record.id),
                 })
               }
             />
@@ -375,11 +442,8 @@ const Debtors: React.FC = () => {
         <Col>
           <Button
             icon={<ReloadOutlined />}
-            onClick={() => {
-              refetch();
-              refetchUpcoming();
-            }}
-            loading={isLoading || isLoadingUpcoming}
+            onClick={handleRefresh}
+            loading={isLoading || isLoadingUpcoming || isLoadingMonthlyDebts}
           >
             Refresh
           </Button>

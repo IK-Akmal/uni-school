@@ -69,3 +69,27 @@ export interface MonthlyPaymentStatus {
   balance: number;
   status: 'paid' | 'partial' | 'unpaid' | 'overpaid';
 }
+
+// Интерфейс для расчета месячной суммы к оплате для должников
+export interface StudentMonthlyDebt {
+  student_id: number;
+  student_fullname: string;
+  phone_number: string;
+  payment_due: number;
+  // Общая стоимость всех групп студента
+  total_course_price: number;
+  // Сумма оплачено в текущем месяце
+  paid_this_month: number;
+  // Остаток к доплате (может быть отрицательным при переплате)
+  total_monthly_amount: number;
+  groups_count: number;
+  groups: Array<{
+    group_id: number;
+    group_title: string;
+    course_price: number;
+  }>;
+  // Дополнительные поля для управления должниками
+  last_payment_date?: string;
+  days_overdue?: number;
+  is_overdue: boolean;
+}
