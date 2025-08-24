@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router";
 import { Layout } from "@/widgets/layout";
 import Home from "@/pages/home";
 import Students from "@/pages/students";
+import Student from "@/pages/student";
 import Groups from "@/pages/groups";
 import Payments from "@/pages/payments";
 import Debtors from "@/pages/debtors";
@@ -21,6 +22,10 @@ const router = createBrowserRouter([
       {
         path: "students",
         Component: Students,
+      },
+      {
+        path: "student/:id",
+        Component: Student,
       },
       {
         path: "groups",

@@ -1,13 +1,16 @@
 import type { TableColumnsType } from "antd";
 import { Button, Popconfirm, Space, Typography } from "antd";
+import { Link } from "react-router";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+
 import {
   EditOutlined,
   DeleteOutlined,
   DollarOutlined,
 } from "@ant-design/icons";
+
 import type { Student } from "@/shared/types/models";
 
 // Регистрируем плагины для работы с часовыми поясами
@@ -26,7 +29,9 @@ export const getColumns = (
     dataIndex: "fullname",
     filterSearch: true,
     filterMode: "menu",
-    render: (text: string) => <a>{text}</a>,
+    render: (text: string, record: Student) => (
+      <Link to={`/student/${record.id}`}>{text}</Link>
+    ),
     onFilter: (value, record) => record.fullname.includes(value as string),
   },
   {
