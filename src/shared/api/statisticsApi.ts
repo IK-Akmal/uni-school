@@ -1,6 +1,8 @@
-import { createApi } from "@reduxjs/toolkit/query/react";
-import { createTauriSqlBaseQuery, SqlOperationType } from "./tauriSqlBaseQuery";
 import dayjs from "dayjs";
+import { createApi } from "@reduxjs/toolkit/query/react";
+
+import { createTauriSqlBaseQuery, SqlOperationType } from "./tauriSqlBaseQuery";
+import type { StudentMonthlyDebt } from "../types/models";
 
 // Создаем базовый запрос с именем базы данных
 const tauriSqlBaseQuery = createTauriSqlBaseQuery("db.sqlite");
@@ -40,6 +42,16 @@ export interface OverduePaymentStudent {
   payment_due: number;
   phone_number: string;
   days_overdue: number;
+  remaining_amount: number;
+  last_payment_date?: string;
+}
+
+export interface UpcomingPaymentStudent {
+  id: number;
+  fullname: string;
+  payment_due: number;
+  phone_number: string;
+  days_until_due: number;
 }
 
 export interface StudentGrowthStats {
@@ -190,35 +202,100 @@ export const statisticsApi = createApi({
 
           return { data: dashboardStats };
         } catch (error) {
-          return { 
-            error: { 
-              message: "Failed to get dashboard statistics", 
-              details: error 
-            } 
+          return {
+            error: {
+              message: "Failed to get dashboard statistics",
+              details: error,
+            },
           };
         }
       },
       providesTags: [{ type: "Statistics", id: "DASHBOARD" }],
     }),
 
-    // Получение студентов с просроченными платежами
+    // Получение студентов с просроченными платежами (включая частичные платежи)
     getOverduePaymentStudents: builder.query<OverduePaymentStudent[], void>({
       query: () => ({
         sql: `
+          WITH student_groups AS (
+            SELECT 
+              s.id as student_id,
+              s.fullname as student_fullname,
+              s.phone_number,
+              s.payment_due,
+              COALESCE(SUM(g.course_price), 0) as total_course_price,
+              GROUP_CONCAT(
+                CASE WHEN g.id IS NOT NULL THEN
+                  json_object(
+                    'group_id', g.id,
+                    'group_title', g.title,
+                    'course_price', g.course_price
+                  )
+                END,
+                '||'
+              ) as groups_json
+            FROM student s
+            LEFT JOIN student_group sg ON s.id = sg.student_id
+            LEFT JOIN group_entity g ON sg.group_id = g.id
+            GROUP BY s.id, s.fullname, s.phone_number, s.payment_due
+          ),
+          student_payments_this_month AS (
+            SELECT 
+              p.student_id,
+              SUM(p.amount) as paid_this_month,
+              SUM(p.course_price_at_payment) as expected_this_month,
+              MAX(p.date) as last_payment_date,
+              strftime('%Y-%m', MAX(p.date)) as last_payment_period
+            FROM payment p
+            WHERE strftime('%Y-%m', p.date) = strftime('%Y-%m', 'now')
+            GROUP BY p.student_id
+          ),
+          overdue_calculations AS (
+            SELECT 
+              sg.student_id,
+              sg.student_fullname,
+              sg.phone_number,
+              sg.payment_due,
+              sg.total_course_price,
+              COALESCE(spm.paid_this_month, 0) as paid_this_month,
+              COALESCE(spm.expected_this_month, sg.total_course_price) as expected_amount_this_month,
+              COALESCE(spm.expected_this_month, sg.total_course_price) - COALESCE(spm.paid_this_month, 0) as remaining_amount,
+              spm.last_payment_date,
+              spm.last_payment_period,
+              strftime('%Y-%m', 'now') as current_period,
+              CAST(strftime('%d', 'now') AS INTEGER) as current_day,
+              -- Эффективный день платежа (не больше дней в месяце)
+              CASE 
+                WHEN sg.payment_due > CAST(strftime('%d', date('now', 'start of month', '+1 month', '-1 day')) AS INTEGER)
+                THEN CAST(strftime('%d', date('now', 'start of month', '+1 month', '-1 day')) AS INTEGER)
+                ELSE sg.payment_due
+              END as effective_payment_due
+            FROM student_groups sg
+            LEFT JOIN student_payments_this_month spm ON sg.student_id = spm.student_id
+          )
           SELECT 
-            s.id,
-            s.fullname,
-            s.payment_due,
-            s.phone_number,
+            student_id as id,
+            student_fullname as fullname,
+            payment_due,
+            phone_number,
+            last_payment_date,
+            remaining_amount,
             CASE
-              WHEN s.payment_due > (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day')))
-                THEN strftime('%d', 'now')
-              WHEN strftime('%d', 'now') < s.payment_due THEN 0
-              ELSE strftime('%d', 'now') - s.payment_due
+              WHEN current_day >= effective_payment_due 
+              THEN current_day - effective_payment_due
+              ELSE 0
             END as days_overdue
-          FROM student s
-          WHERE days_overdue > 0
-          ORDER BY days_overdue DESC
+          FROM overdue_calculations
+          WHERE (
+            -- Условие 1: Студент не платил в этом месяце И прошел срок платежа
+            (last_payment_period IS NULL OR last_payment_period < current_period) 
+            AND current_day >= effective_payment_due
+          ) OR (
+            -- Условие 2: Студент платил частично (остался долг > 0)
+            remaining_amount > 0
+            AND current_day >= effective_payment_due
+          )
+          ORDER BY days_overdue DESC, remaining_amount DESC, student_fullname ASC
         `,
         operationType: SqlOperationType.SELECT,
       }),
@@ -284,7 +361,12 @@ export const statisticsApi = createApi({
 
     // Получение топ студентов по платежам
     getTopPayingStudents: builder.query<
-      { student_id: number; fullname: string; total_amount: number; payment_count: number }[],
+      {
+        student_id: number;
+        fullname: string;
+        total_amount: number;
+        payment_count: number;
+      }[],
       { limit?: number }
     >({
       query: ({ limit = 10 }) => ({
@@ -295,8 +377,7 @@ export const statisticsApi = createApi({
             COALESCE(SUM(p.amount), 0) as total_amount,
             COUNT(p.id) as payment_count
           FROM student s
-          LEFT JOIN student_payment sp ON s.id = sp.student_id
-          LEFT JOIN payment p ON sp.payment_id = p.id
+          LEFT JOIN payment p ON s.id = p.student_id
           GROUP BY s.id, s.fullname
           HAVING total_amount > 0
           ORDER BY total_amount DESC
@@ -307,6 +388,164 @@ export const statisticsApi = createApi({
       }),
       providesTags: [{ type: "Statistics", id: "TOP_PAYING_STUDENTS" }],
     }),
+
+    // Получение студентов, которые должны заплатить в ближайшие дни
+    getUpcomingPaymentStudents: builder.query<
+      UpcomingPaymentStudent[],
+      { daysAhead?: number }
+    >({
+      query: ({ daysAhead = 3 }) => ({
+        sql: `
+          WITH current_period AS (
+            SELECT strftime('%Y-%m', 'now') as period
+          ),
+          student_payments AS (
+            SELECT 
+              s.id,
+              s.fullname,
+              s.payment_due,
+              s.phone_number,
+              MAX(p.date) as last_payment_date,
+              strftime('%Y-%m', MAX(p.date)) as last_payment_period
+            FROM student s
+            LEFT JOIN payment p ON s.id = p.student_id
+            GROUP BY s.id, s.fullname, s.payment_due, s.phone_number
+          )
+          SELECT 
+            sp.id,
+            sp.fullname,
+            sp.payment_due,
+            sp.phone_number,
+            (
+              CASE
+                WHEN sp.payment_due > (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day')))
+                  THEN sp.payment_due - strftime('%d', 'now')
+                WHEN strftime('%d', 'now') < sp.payment_due 
+                  THEN sp.payment_due - strftime('%d', 'now')
+                ELSE 0
+              END
+            ) as days_until_due
+          FROM student_payments sp
+          WHERE (
+            -- Студент не платил в этом месяце
+            sp.last_payment_period IS NULL OR 
+            sp.last_payment_period < (SELECT period FROM current_period)
+          )
+          AND (
+            -- До срока платежа осталось от 0 до указанного количества дней
+            CASE
+              WHEN sp.payment_due > (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day')))
+                THEN sp.payment_due - strftime('%d', 'now')
+              WHEN strftime('%d', 'now') < sp.payment_due 
+                THEN sp.payment_due - strftime('%d', 'now')
+              ELSE 0
+            END
+          ) BETWEEN 0 AND ?
+          ORDER BY days_until_due ASC
+        `,
+        args: [daysAhead],
+        operationType: SqlOperationType.SELECT,
+      }),
+      providesTags: [{ type: "Statistics", id: "UPCOMING_PAYMENTS" }],
+    }),
+
+    // Расчет общей суммы к оплате в месяц для всех студентов (Для Debtors Management)
+    getStudentMonthlyDebts: builder.query<StudentMonthlyDebt[], void>({
+      query: () => ({
+        sql: `
+          WITH student_groups AS (
+            SELECT 
+              s.id as student_id,
+              s.fullname as student_fullname,
+              s.phone_number,
+              s.payment_due,
+              COALESCE(SUM(g.course_price), 0) as total_course_price,
+              COUNT(CASE WHEN sg.group_id IS NOT NULL THEN 1 END) as groups_count,
+              GROUP_CONCAT(
+                CASE WHEN g.id IS NOT NULL THEN
+                  json_object(
+                    'group_id', g.id,
+                    'group_title', g.title,
+                    'course_price', g.course_price
+                  )
+                END,
+                '||'
+              ) as groups_json
+            FROM student s
+            LEFT JOIN student_group sg ON s.id = sg.student_id
+            LEFT JOIN group_entity g ON sg.group_id = g.id
+            GROUP BY s.id, s.fullname, s.phone_number, s.payment_due
+          ),
+          student_payments_this_month AS (
+            SELECT 
+              p.student_id,
+              SUM(p.amount) as paid_this_month,
+              SUM(p.course_price_at_payment) as expected_this_month,
+              MAX(p.date) as last_payment_date
+            FROM payment p
+            WHERE strftime('%Y-%m', p.date) = strftime('%Y-%m', 'now')
+            GROUP BY p.student_id
+          )
+          SELECT 
+            sg.student_id,
+            sg.student_fullname,
+            sg.phone_number,
+            sg.payment_due,
+            sg.total_course_price,
+            COALESCE(spm.paid_this_month, 0) as paid_this_month,
+            COALESCE(spm.expected_this_month, sg.total_course_price) as expected_amount_this_month,
+            COALESCE(spm.expected_this_month, sg.total_course_price) - COALESCE(spm.paid_this_month, 0) as total_monthly_amount,
+            sg.groups_count,
+            sg.groups_json,
+            spm.last_payment_date,
+            CASE 
+              WHEN sg.payment_due < CAST(strftime('%d', 'now') AS INTEGER) THEN 
+                CAST(strftime('%d', 'now') AS INTEGER) - sg.payment_due
+              ELSE 0
+            END as days_overdue
+          FROM student_groups sg
+          LEFT JOIN student_payments_this_month spm ON sg.student_id = spm.student_id
+          ORDER BY sg.student_fullname ASC
+        `,
+        operationType: SqlOperationType.SELECT,
+      }),
+      transformResponse: (response: any[]) => {
+        return response.map((row) => {
+          // Парсим JSON строку с группами
+          let groups = [];
+          if (row.groups_json) {
+            try {
+              const groupsArray = row.groups_json
+                .split("||")
+                .filter((groupStr: string) => groupStr.trim())
+                .map((groupStr: string) => JSON.parse(groupStr.trim()));
+              groups = groupsArray;
+            } catch (error) {
+              console.error("Error parsing groups JSON:", error);
+              groups = [];
+            }
+          }
+
+          const daysOverdue = row.days_overdue || 0;
+
+          return {
+            student_id: row.student_id,
+            student_fullname: row.student_fullname,
+            phone_number: row.phone_number,
+            payment_due: row.payment_due,
+            total_course_price: row.total_course_price || 0,
+            paid_this_month: row.paid_this_month || 0,
+            total_monthly_amount: row.total_monthly_amount || 0,
+            groups_count: row.groups_count || 0,
+            groups: groups,
+            last_payment_date: row.last_payment_date || undefined,
+            days_overdue: daysOverdue,
+            is_overdue: daysOverdue > 0,
+          };
+        });
+      },
+      providesTags: [{ type: "Statistics", id: "MONTHLY_DEBTS" }],
+    }),
   }),
 });
 
@@ -316,9 +555,9 @@ function fillMissingMonths<T extends { month: string; count: number }>(
   hasAmount = false
 ): T[] {
   const emptyMonths = generateEmptyMonths(hasAmount);
-  const dataMap = new Map(data.map(item => [item.month, item]));
-  
-  return emptyMonths.map(emptyMonth => {
+  const dataMap = new Map(data.map((item) => [item.month, item]));
+
+  return emptyMonths.map((emptyMonth) => {
     const existing = dataMap.get(emptyMonth.month);
     return existing || emptyMonth;
   }) as T[];
@@ -328,16 +567,16 @@ function fillMissingMonths<T extends { month: string; count: number }>(
 function generateEmptyMonths(hasAmount = false): any[] {
   const months = [];
   for (let i = 5; i >= 0; i--) {
-    const month = dayjs().subtract(i, 'month').format('YYYY-MM');
+    const month = dayjs().subtract(i, "month").format("YYYY-MM");
     const emptyData: any = {
       month,
       count: 0,
     };
-    
+
     if (hasAmount) {
       emptyData.totalAmount = 0;
     }
-    
+
     months.push(emptyData);
   }
   return months;
@@ -352,4 +591,6 @@ export const {
   useGetStudentGrowthStatsQuery,
   useGetPaymentTrendStatsQuery,
   useGetTopPayingStudentsQuery,
+  useGetUpcomingPaymentStudentsQuery,
+  useGetStudentMonthlyDebtsQuery,
 } = statisticsApi;

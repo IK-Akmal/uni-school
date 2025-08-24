@@ -20,24 +20,37 @@ import {
   useDeletePaymentMutation,
   useGetPaymentStudentsQuery,
 } from "@/shared/api/paymentApi";
-import { useGetStudentsQuery } from "@/shared/api/studentApi";
+import { useGetStudentsQuery, useGetStudentGroupsQuery } from "@/shared/api/studentApi";
+import { useGetGroupsQuery } from "@/shared/api/groupApi";
 import { PaymentTable } from "@/widgets/payment-table";
 import { EditPaymentModal } from "@/features/payment/edit-payment-modal";
 import type { Payment } from "@/shared/types/models";
 
 const { Title } = Typography;
 
-const Payments = () => {
-  const [createForm] = Form.useForm();
+const Payments: React.FC = () => {
+  const [form] = Form.useForm();
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
 
   // RTK Query хуки
   const { data: payments = [], isLoading: isLoadingPayments } =
     useGetPaymentsQuery(undefined, { refetchOnMountOrArgChange: true });
   const { data: students = [], isLoading: isLoadingStudents } =
     useGetStudentsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const { data: groups = [], isLoading: isLoadingGroups } = useGetGroupsQuery(
+    undefined,
+    { refetchOnMountOrArgChange: true }
+  );
+  const { data: studentGroups = [], isLoading: isLoadingStudentGroups } = useGetStudentGroupsQuery(
+    selectedStudentId!,
+    { 
+      skip: !selectedStudentId,
+      refetchOnMountOrArgChange: true 
+    }
+  );
   const { data: paymentStudents = [] } = useGetPaymentStudentsQuery();
   const [createStudentPayment, { isLoading: isCreatingStudentPayment }] =
     useCreateStudentPaymentMutation();
@@ -59,22 +72,38 @@ const Payments = () => {
     });
   }, [payments, searchQuery]);
 
+  // Обработчик изменения выбранного студента
+  const handleStudentChange = (studentId: number) => {
+    setSelectedStudentId(studentId);
+    // Сбрасываем выбор группы при смене студента
+    form.setFieldsValue({ groupId: null });
+  };
+
+  // Определяем какие группы показывать
+  const availableGroups = selectedStudentId ? studentGroups : groups;
+
   // Обработчики событий
   const handleCreatePayment = async (values: any) => {
     try {
       const paymentData = {
         date: values.date.format("YYYY-MM-DD"),
         amount: values.amount,
+        group_id: values.groupId,
+        student_id: values.studentId,
+        course_price_at_payment: values.coursePriceAtPayment,
+        payment_period: values.paymentPeriod,
+        payment_type: values.paymentType,
+        notes: values.notes || null,
       };
 
-      // Создаем платеж и сразу привязываем его к студенту
+      // Создаем платеж с полными данными
       await createStudentPayment({
         studentId: values.studentId,
         payment: paymentData,
       });
       message.success("Payment successfully created and linked to student");
 
-      createForm.resetFields();
+      form.resetFields();
     } catch (error) {
       console.error("Error creating payment:", error);
       message.error("Failed to create payment");
@@ -107,12 +136,6 @@ const Payments = () => {
     <Flex vertical style={{ width: "100%", padding: "16px", display: "flex" }}>
       <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
         <Title level={2}>Payments</Title>
-        <Input.Search
-          placeholder="Search payments"
-          allowClear
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ width: 300 }}
-        />
       </Flex>
 
       <Flex gap={16} style={{ marginBottom: 16 }}>
@@ -122,7 +145,7 @@ const Payments = () => {
           variant="borderless"
         >
           <Form
-            form={createForm}
+            form={form}
             layout="vertical"
             onFinish={handleCreatePayment}
             initialValues={{ date: dayjs(), amount: 0 }}
@@ -158,10 +181,77 @@ const Payments = () => {
                 placeholder="Select student"
                 loading={isLoadingStudents}
                 disabled={isLoadingStudents}
+                onChange={handleStudentChange}
                 options={students.map((student) => ({
                   value: student.id,
                   label: student.fullname,
                 }))}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="groupId"
+              label="Group"
+              rules={[{ required: true, message: "Please select a group" }]}
+            >
+              <Select
+                placeholder={selectedStudentId ? "Select group from student's groups" : "Select student first"}
+                loading={isLoadingGroups || isLoadingStudentGroups}
+                disabled={isLoadingGroups || isLoadingStudentGroups || !selectedStudentId}
+                options={availableGroups.map((group) => ({
+                  value: group.id,
+                  label: group.title,
+                }))}
+                notFoundContent={selectedStudentId ? "No groups found for this student" : "Please select a student first"}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="coursePriceAtPayment"
+              label="Course Price at Payment"
+              rules={[{ required: true, message: "Please enter course price" }]}
+            >
+              <InputNumber
+                style={{ width: "100%" }}
+                precision={2}
+                min={0}
+                step={100}
+                placeholder="Course price at time of payment"
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="paymentPeriod"
+              label="Payment Period"
+              rules={[
+                { required: true, message: "Please enter payment period" },
+              ]}
+            >
+              <Input placeholder="e.g., 2024-01" />
+            </Form.Item>
+
+            <Form.Item
+              name="paymentType"
+              label="Payment Type"
+              rules={[
+                { required: true, message: "Please select payment type" },
+              ]}
+            >
+              <Select
+                placeholder="Select payment type"
+                options={[
+                  { value: "cash", label: "Cash" },
+                  { value: "card", label: "Card" },
+                  { value: "transfer", label: "Bank Transfer" },
+                  { value: "online", label: "Online Payment" },
+                ]}
+              />
+            </Form.Item>
+
+            <Form.Item name="notes" label="Notes">
+              <Input.TextArea
+                rows={2}
+                placeholder="Optional notes about the payment"
               />
             </Form.Item>
 

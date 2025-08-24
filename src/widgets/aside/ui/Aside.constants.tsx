@@ -1,4 +1,4 @@
-import { DollarOutlined, TeamOutlined, UserOutlined, HomeOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { DollarOutlined, TeamOutlined, UserOutlined, HomeOutlined, InfoCircleOutlined, WarningOutlined } from "@ant-design/icons";
 
 export const menuItems = [
   {
@@ -20,6 +20,11 @@ export const menuItems = [
     key: "/payments",
     icon: <DollarOutlined />,
     label: "Payments",
+  },
+  {
+    key: "/debtors",
+    icon: <WarningOutlined />,
+    label: "Debtors",
   },
   {
     key: "/about",

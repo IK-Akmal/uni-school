@@ -39,13 +39,10 @@ const EditGroupModal = ({
   });
 
   // Используем мутацию для обновления группы со студентами
-  const [updateGroupWithStudents, { isLoading: isUpdating }] = 
+  const [updateGroupWithStudents, { isLoading: isUpdating }] =
     useUpdateGroupWithStudentsMutation();
 
-  const isLoading =
-    isUpdating ||
-    isLoadingStudents ||
-    isLoadingGroupStudents;
+  const isLoading = isUpdating || isLoadingStudents || isLoadingGroupStudents;
 
   // Заполняем форму данными группы при редактировании
   useEffect(() => {
@@ -55,6 +52,7 @@ const EditGroupModal = ({
       // Заполняем форму данными группы
       form.setFieldsValue({
         title: group.title,
+        course_price: group.course_price,
       });
     }
   }, [open, form, group]);
@@ -82,11 +80,17 @@ const EditGroupModal = ({
         return;
       }
 
+      if (!values.course_price) {
+        message.error("Please enter a valid course price");
+        return;
+      }
+
       // Обновляем группу и связи со студентами в одной транзакции
       await updateGroupWithStudents({
         group: {
           id: group.id,
           title: values.title,
+          course_price: values.course_price,
         },
         studentIds: values.studentIds,
       });

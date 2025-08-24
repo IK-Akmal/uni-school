@@ -20,13 +20,19 @@ export const paymentApi = createApi({
                 p.id,
                 p.date,
                 p.amount,
-                student.id AS student_id,
-                student.fullname AS student_fullname
+                p.group_id,
+                p.student_id,
+                p.course_price_at_payment,
+                p.payment_period,
+                p.payment_type,
+                p.notes,
+                p.created_at,
+                s.fullname AS student_fullname,
+                g.title AS group_title
             FROM
                 payment p
-            JOIN student_payment sp ON p.id = sp.payment_id
-            JOIN
-                student ON sp.student_id = student.id 
+            JOIN student s ON p.student_id = s.id
+            JOIN group_entity g ON p.group_id = g.id
             ORDER BY p.date DESC`,
         operationType: SqlOperationType.SELECT,
       }),
@@ -51,25 +57,62 @@ export const paymentApi = createApi({
       providesTags: (_, __, id) => [{ type: "Payment", id }],
     }),
 
-    createPayment: builder.mutation<SqlExecuteResult, Omit<Payment, "id">>({
+    createPayment: builder.mutation<SqlExecuteResult, Omit<Payment, "id" | "created_at">>({  
       query: (payment) => ({
-        sql: "INSERT INTO payment (date, amount) VALUES (?, ?) RETURNING id",
-        args: [payment.date, payment.amount],
-        useTransaction: true,
+        sql: `INSERT INTO payment (
+          date, 
+          amount, 
+          group_id, 
+          student_id, 
+          course_price_at_payment, 
+          payment_period, 
+          payment_type, 
+          notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        args: [
+          payment.date, 
+          payment.amount, 
+          payment.group_id, 
+          payment.student_id, 
+          payment.course_price_at_payment, 
+          payment.payment_period, 
+          payment.payment_type, 
+          payment.notes
+        ],
         operationType: SqlOperationType.INSERT,
       }),
-      invalidatesTags: [{ type: "Payment", id: "LIST" }],
+      invalidatesTags: [{ type: "Payment", id: "LIST" }, { type: "StudentPayment", id: "LIST" }],
     }),
 
     updatePayment: builder.mutation<void, Payment>({
       query: (payment) => ({
-        sql: "UPDATE payment SET date = ?, amount = ? WHERE id = ?",
-        args: [payment.date, payment.amount, payment.id],
+        sql: `UPDATE payment SET 
+          date = ?, 
+          amount = ?, 
+          group_id = ?, 
+          student_id = ?, 
+          course_price_at_payment = ?, 
+          payment_period = ?, 
+          payment_type = ?, 
+          notes = ? 
+        WHERE id = ?`,
+        args: [
+          payment.date, 
+          payment.amount, 
+          payment.group_id, 
+          payment.student_id, 
+          payment.course_price_at_payment, 
+          payment.payment_period, 
+          payment.payment_type, 
+          payment.notes,
+          payment.id
+        ],
         operationType: SqlOperationType.UPDATE,
       }),
       invalidatesTags: (_, __, { id }) => [
         { type: "Payment", id },
         { type: "Payment", id: "LIST" },
+        { type: "StudentPayment", id: "LIST" },
       ],
     }),
 
@@ -87,8 +130,7 @@ export const paymentApi = createApi({
         sql: `
           SELECT p.* 
           FROM payment p
-          JOIN student_payment sp ON p.id = sp.payment_id
-          WHERE sp.student_id = ?
+          WHERE p.student_id = ?
           ORDER BY p.date DESC
         `,
         args: [studentId],
@@ -104,55 +146,32 @@ export const paymentApi = createApi({
     }),
 
     createStudentPayment: builder.mutation<
-      void,
-      { studentId: number; payment: Omit<Payment, "id"> }
+      SqlExecuteResult,
+      { studentId: number; payment: Omit<Payment, "id" | "created_at"> }
     >({
-      async queryFn(
-        { studentId, payment },
-        _queryApi,
-        _extraOptions,
-        baseQuery
-      ) {
-        try {
-          // Создаем платеж
-          const paymentResult = await baseQuery({
-            sql: "INSERT INTO payment (date, amount) VALUES (?, ?) RETURNING id",
-            args: [payment.date, payment.amount],
-            operationType: SqlOperationType.INSERT,
-          });
-
-          if (paymentResult.error) {
-            return { error: paymentResult.error };
-          }
-
-          const paymentData = paymentResult.data as SqlExecuteResult;
-          const newPaymentId = paymentData.lastInsertId;
-
-          if (!newPaymentId) {
-            return { error: { message: "Failed to get new payment ID" } };
-          }
-
-          // Связываем платеж со студентом
-          const linkResult = await baseQuery({
-            sql: "INSERT INTO student_payment (student_id, payment_id) VALUES (?, ?)",
-            args: [studentId, newPaymentId],
-            operationType: SqlOperationType.INSERT,
-          });
-
-          if (linkResult.error) {
-            return { error: linkResult.error };
-          }
-
-          return { data: undefined };
-        } catch (error) {
-          return {
-            error: {
-              message: "Failed to create student payment",
-              details: error,
-            },
-          };
-        }
-      },
+      query: ({ studentId, payment }) => ({
+        sql: `INSERT INTO payment (
+          date, 
+          amount, 
+          group_id, 
+          student_id, 
+          course_price_at_payment, 
+          payment_period, 
+          payment_type, 
+          notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        args: [
+          payment.date, 
+          payment.amount, 
+          payment.group_id, 
+          studentId, // используем переданный studentId
+          payment.course_price_at_payment, 
+          payment.payment_period, 
+          payment.payment_type, 
+          payment.notes
+        ],
+        operationType: SqlOperationType.INSERT,
+      }),
       invalidatesTags: (_, __, { studentId }) => [
         { type: "Payment", id: "LIST" },
         { type: "StudentPayment", id: studentId },
@@ -163,64 +182,11 @@ export const paymentApi = createApi({
       void,
       { studentId: number; paymentId: number }
     >({
-      async queryFn(
-        { studentId, paymentId },
-        _queryApi,
-        _extraOptions,
-        baseQuery
-      ) {
-        try {
-          // Удаляем связь студент-платеж
-          const unlinkResult = await baseQuery({
-            sql: "DELETE FROM student_payment WHERE student_id = ? AND payment_id = ?",
-            args: [studentId, paymentId],
-            useTransaction: true,
-            operationType: SqlOperationType.DELETE,
-          });
-
-          if (unlinkResult.error) {
-            return { error: unlinkResult.error };
-          }
-
-          // Проверяем, есть ли еще связи с этим платежом
-          const checkResult = await baseQuery({
-            sql: "SELECT COUNT(*) as count FROM student_payment WHERE payment_id = ?",
-            args: [paymentId],
-            operationType: SqlOperationType.SELECT,
-          });
-
-          if (checkResult.error) {
-            return { error: checkResult.error };
-          }
-
-          const checkData = Array.isArray(checkResult.data)
-            ? (checkResult.data as { count: number }[])
-            : [];
-
-          if (checkData[0]?.count === 0) {
-            // Если нет других связей, удаляем сам платеж
-            const deleteResult = await baseQuery({
-              sql: "DELETE FROM payment WHERE id = ?",
-              args: [paymentId],
-              useTransaction: true,
-              operationType: SqlOperationType.DELETE,
-            });
-
-            if (deleteResult.error) {
-              return { error: deleteResult.error };
-            }
-          }
-
-          return { data: undefined };
-        } catch (error) {
-          return {
-            error: {
-              message: "Failed to delete student payment",
-              details: error,
-            },
-          };
-        }
-      },
+      query: ({ studentId, paymentId }) => ({
+        sql: "DELETE FROM payment WHERE id = ? AND student_id = ?",
+        args: [paymentId, studentId],
+        operationType: SqlOperationType.DELETE,
+      }),
       invalidatesTags: (_, __, { studentId }) => [
         { type: "Payment", id: "LIST" },
         { type: "StudentPayment", id: studentId },
@@ -254,8 +220,7 @@ export const paymentApi = createApi({
             s.fullname,
             COALESCE(SUM(p.amount), 0) as total_amount
           FROM student s
-          LEFT JOIN student_payment sp ON s.id = sp.student_id
-          LEFT JOIN payment p ON sp.payment_id = p.id
+          LEFT JOIN payment p ON s.id = p.student_id
           GROUP BY s.id, s.fullname
           ORDER BY total_amount DESC
         `,
@@ -287,8 +252,7 @@ export const paymentApi = createApi({
             p.amount,
             p.date
           FROM student s
-          LEFT JOIN student_payment sp ON s.id = sp.student_id
-          LEFT JOIN payment p ON sp.payment_id = p.id
+          LEFT JOIN payment p ON s.id = p.student_id
           ORDER BY s.fullname ASC, p.date DESC
         `,
         operationType: SqlOperationType.SELECT,

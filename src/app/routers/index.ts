@@ -5,6 +5,7 @@ import Home from "@/pages/home";
 import Students from "@/pages/students";
 import Groups from "@/pages/groups";
 import Payments from "@/pages/payments";
+import Debtors from "@/pages/debtors";
 import About from "@/pages/about";
 
 const router = createBrowserRouter([
@@ -28,6 +29,10 @@ const router = createBrowserRouter([
       {
         path: "payments",
         Component: Payments,
+      },
+      {
+        path: "debtors",
+        Component: Debtors,
       },
       {
         path: "about",
