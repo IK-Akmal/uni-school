@@ -27,10 +27,10 @@ export class UpdaterService {
   async checkForUpdates(): Promise<UpdateInfo> {
     try {
       const currentVersion = await getVersion();
-      
+
       // Check if we're running in development mode
       if (import.meta.env.DEV) {
-        console.log('Development mode - skipping update check');
+        console.log("Development mode - skipping update check");
         return {
           available: false,
           currentVersion,
