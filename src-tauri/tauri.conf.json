@@ -53,7 +53,7 @@
       "preload": ["sqlite:db.sqlite"]
     },
     "updater": {
-      "active": false,
+      "active": true,
       "endpoints": [
         "https://github.com/IK-Akmal/uni-school/releases/latest/download/latest.json"
       ],
