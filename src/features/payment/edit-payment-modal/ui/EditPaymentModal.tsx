@@ -41,6 +41,13 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
         id: payment.id,
         date: values.date.format("YYYY-MM-DD"),
         amount: values.amount,
+        group_id: payment.group_id,
+        student_id: payment.student_id,
+        course_price_at_payment: payment.course_price_at_payment,
+        payment_period: payment.payment_period,
+        payment_type: payment.payment_type,
+        notes: payment.notes,
+        created_at: payment.created_at,
       });
       
       message.success("Payment successfully updated");
