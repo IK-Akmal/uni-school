@@ -36,7 +36,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.0-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
             build-essential \
             curl \
             wget \
@@ -46,7 +47,6 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libsoup-3.0-dev \
-            libjavascriptcoregtk-4.0-dev \
             pkg-config \
             libglib2.0-dev \
             libcairo2-dev \
@@ -83,7 +83,8 @@ jobs:
           
           # Check installed packages
           echo "=== Checking WebKit packages ==="
-          pkg-config --exists webkit2gtk-4.0 && echo "webkit2gtk-4.0: OK" || echo "webkit2gtk-4.0: MISSING"
+          pkg-config --exists webkit2gtk-4.1 && echo "webkit2gtk-4.1: OK" || echo "webkit2gtk-4.1: MISSING"
+          pkg-config --exists javascriptcoregtk-4.1 && echo "javascriptcoregtk-4.1: OK" || echo "javascriptcoregtk-4.1: MISSING"
           pkg-config --exists libsoup-3.0 && echo "libsoup-3.0: OK" || echo "libsoup-3.0: MISSING"
           
           # Build with detailed output
