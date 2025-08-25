@@ -25,9 +25,18 @@ export class UpdaterService {
    */
   async checkForUpdates(): Promise<UpdateInfo> {
     try {
+      // Check if we're running in development mode
+      if (import.meta.env.DEV) {
+        console.log('Development mode - skipping update check');
+        return {
+          available: false,
+          currentVersion: '0.1.0',
+        };
+      }
+
       const update = await check();
       
-      if (update?.available) {
+      if (update) {
         return {
           available: true,
           currentVersion: update.currentVersion,
@@ -39,11 +48,15 @@ export class UpdaterService {
 
       return {
         available: false,
-        currentVersion: update?.currentVersion || '0.1.0',
+        currentVersion: '0.1.0',
       };
     } catch (error) {
       console.error('Error checking for updates:', error);
-      throw new Error('Failed to check for updates');
+      // Return safe fallback instead of throwing
+      return {
+        available: false,
+        currentVersion: '0.1.0',
+      };
     }
   }
 
@@ -52,11 +65,21 @@ export class UpdaterService {
    */
   async downloadAndInstall(): Promise<void> {
     try {
+      // Check if we're running in development mode
+      if (import.meta.env.DEV) {
+        console.log('Development mode - update installation not available');
+        throw new Error('Updates not available in development mode');
+      }
+
       const update = await check();
       
-      if (!update?.available) {
+      if (!update) {
         throw new Error('No updates available');
       }
+
+      console.log(
+        `Found update ${update.version} from ${update.date} with notes ${update.body}`
+      );
 
       // Показываем диалог подтверждения
       const confirmed = await ask(
@@ -71,8 +94,27 @@ export class UpdaterService {
         return;
       }
 
-      // Загружаем и устанавливаем обновление
-      await update.downloadAndInstall();
+      let downloaded = 0;
+      let contentLength = 0;
+
+      // Загружаем и устанавливаем обновление с прогресс-индикатором
+      await update.downloadAndInstall((event) => {
+        switch (event.event) {
+          case 'Started':
+            contentLength = event.data.contentLength || 0;
+            console.log(`Started downloading ${event.data.contentLength || 0} bytes`);
+            break;
+          case 'Progress':
+            downloaded += event.data.chunkLength || 0;
+            console.log(`Downloaded ${downloaded} from ${contentLength}`);
+            break;
+          case 'Finished':
+            console.log('Download finished');
+            break;
+        }
+      });
+
+      console.log('Update installed');
 
       // Показываем диалог о необходимости перезапуска
       const restart = await ask(

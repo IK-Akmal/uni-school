@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { Button, notification, Modal, Typography, Space, Tag } from 'antd';
-import { DownloadOutlined, ReloadOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import { UpdaterService, UpdateInfo } from '@/shared/utils/updater';
+import React, { useEffect, useState } from "react";
+import { Button, notification, Modal, Typography, Space, Tag } from "antd";
+import {
+  DownloadOutlined,
+  ReloadOutlined,
+  CheckCircleOutlined,
+} from "@ant-design/icons";
+import { UpdaterService, UpdateInfo } from "@/shared/utils/updater";
 
 const { Text, Paragraph } = Typography;
 
@@ -10,9 +14,9 @@ interface UpdateCheckerProps {
   showButton?: boolean;
 }
 
-export const UpdateChecker: React.FC<UpdateCheckerProps> = ({ 
-  autoCheck = true, 
-  showButton = true 
+export const UpdateChecker: React.FC<UpdateCheckerProps> = ({
+  autoCheck = true,
+  showButton = true,
 }) => {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
@@ -25,22 +29,23 @@ export const UpdateChecker: React.FC<UpdateCheckerProps> = ({
     setIsChecking(true);
     try {
       const info = await updaterService.checkForUpdates();
+
       setUpdateInfo(info);
-      
+
       if (info.available) {
         setShowModal(true);
         notification.info({
-          message: 'Update Available',
+          message: "Update Available",
           description: `Version ${info.version} is available for download.`,
-          icon: <DownloadOutlined style={{ color: '#1890ff' }} />,
+          icon: <DownloadOutlined style={{ color: "#1890ff" }} />,
           duration: 0,
-          key: 'update-available',
+          key: "update-available",
           btn: (
-            <Button 
-              type="primary" 
-              size="small" 
+            <Button
+              type="primary"
+              size="small"
               onClick={() => {
-                notification.destroy('update-available');
+                notification.destroy("update-available");
                 setShowModal(true);
               }}
             >
@@ -50,16 +55,16 @@ export const UpdateChecker: React.FC<UpdateCheckerProps> = ({
         });
       } else if (showButton) {
         notification.success({
-          message: 'No Updates Available',
-          description: 'You are running the latest version.',
-          icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+          message: "No Updates Available",
+          description: "You are running the latest version.",
+          icon: <CheckCircleOutlined style={{ color: "#52c41a" }} />,
           duration: 3,
         });
       }
     } catch (error) {
       notification.error({
-        message: 'Update Check Failed',
-        description: 'Failed to check for updates. Please try again later.',
+        message: "Update Check Failed",
+        description: "Failed to check for updates. Please try again later.",
         duration: 5,
       });
     } finally {
@@ -72,15 +77,15 @@ export const UpdateChecker: React.FC<UpdateCheckerProps> = ({
     try {
       await updaterService.downloadAndInstall();
       notification.success({
-        message: 'Update Installed',
-        description: 'The application will restart to apply the update.',
+        message: "Update Installed",
+        description: "The application will restart to apply the update.",
         duration: 3,
       });
       setShowModal(false);
     } catch (error) {
       notification.error({
-        message: 'Update Failed',
-        description: 'Failed to download and install the update.',
+        message: "Update Failed",
+        description: "Failed to download and install the update.",
         duration: 5,
       });
     } finally {
@@ -129,12 +134,12 @@ export const UpdateChecker: React.FC<UpdateCheckerProps> = ({
         width={500}
       >
         {updateInfo?.available && (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" style={{ width: "100%" }}>
             <div>
               <Text strong>New Version: </Text>
               <Tag color="blue">{updateInfo.version}</Tag>
             </div>
-            
+
             <div>
               <Text strong>Current Version: </Text>
               <Tag>{updateInfo.currentVersion}</Tag>
@@ -143,21 +148,23 @@ export const UpdateChecker: React.FC<UpdateCheckerProps> = ({
             {updateInfo.date && (
               <div>
                 <Text strong>Release Date: </Text>
-                <Text type="secondary">{new Date(updateInfo.date).toLocaleDateString()}</Text>
+                <Text type="secondary">
+                  {new Date(updateInfo.date).toLocaleDateString()}
+                </Text>
               </div>
             )}
 
             {updateInfo.body && (
               <div>
                 <Text strong>What's New:</Text>
-                <Paragraph 
-                  style={{ 
-                    marginTop: 8, 
-                    padding: 12, 
-                    backgroundColor: '#f5f5f5', 
+                <Paragraph
+                  style={{
+                    marginTop: 8,
+                    padding: 12,
+                    backgroundColor: "#f5f5f5",
                     borderRadius: 4,
                     maxHeight: 200,
-                    overflowY: 'auto'
+                    overflowY: "auto",
                   }}
                 >
                   {updateInfo.body}
