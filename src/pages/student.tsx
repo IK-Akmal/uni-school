@@ -44,7 +44,7 @@ import {
 import { useGetGroupsQuery } from "@/shared/api/groupApi";
 import {
   useGetStudentPaymentsQuery,
-  useCreatePaymentMutation,
+  useCreateStudentPaymentMutation,
   useUpdatePaymentMutation,
   useDeletePaymentMutation,
 } from "@/shared/api/paymentApi";
@@ -122,7 +122,7 @@ const Student: React.FC = () => {
 
   const [updateStudent] = useUpdateStudentMutation();
   const [updateStudentWithGroup] = useUpdateStudentWithGroupMutation();
-  const [createPayment] = useCreatePaymentMutation();
+  const [createStudentPayment] = useCreateStudentPaymentMutation();
   const [updatePayment] = useUpdatePaymentMutation();
   const [deletePayment] = useDeletePaymentMutation();
 
@@ -198,7 +198,9 @@ const Student: React.FC = () => {
     paymentForm.setFieldsValue({
       date: dayjs(),
       payment_period: dayjs().format("YYYY-MM"),
-      payment_type: "monthly",
+      payment_type: "cash",
+      amount: 0,
+      course_price_at_payment: 0,
     });
     setIsPaymentModalVisible(true);
   };
@@ -215,20 +217,36 @@ const Student: React.FC = () => {
   const handleSavePayment = async () => {
     try {
       const values = await paymentForm.validateFields();
-      const paymentData = {
-        ...values,
-        date: values.date.format("YYYY-MM-DD"),
-        student_id: studentId,
-      };
-
+      
       if (editingPayment) {
+        const paymentData = {
+          ...values,
+          date: values.date.format("YYYY-MM-DD"),
+          student_id: studentId,
+        };
+        
         await updatePayment({
           ...editingPayment,
           ...paymentData,
         }).unwrap();
         message.success("Payment updated successfully");
       } else {
-        await createPayment(paymentData).unwrap();
+        // Для создания нового платежа нужны все обязательные поля
+        const paymentData = {
+          date: values.date.format("YYYY-MM-DD"),
+          amount: values.amount,
+          group_id: values.group_id,
+          student_id: studentId,
+          course_price_at_payment: values.course_price_at_payment,
+          payment_period: values.payment_period,
+          payment_type: values.payment_type,
+          notes: values.notes || null,
+        };
+        
+        await createStudentPayment({
+          studentId: studentId,
+          payment: paymentData,
+        }).unwrap();
         message.success("Payment created successfully");
       }
 
@@ -916,15 +934,47 @@ const Student: React.FC = () => {
               </Col>
               <Col xs={24} sm={12}>
                 <Form.Item
+                  label="Course Price at Payment"
+                  name="course_price_at_payment"
+                  rules={[
+                    { required: true, message: "Please enter course price" },
+                  ]}
+                >
+                  <InputNumber
+                    style={{ width: "100%" }}
+                    min={0}
+                    placeholder="Course price at time of payment"
+                    formatter={(value) =>
+                      `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                    }
+                    parser={(value) => value!.replace(/\$\s?|(,*)/g, "") as any}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
                   label="Payment Period"
                   name="payment_period"
                   rules={[
-                    { required: true, message: "Please select payment period" },
+                    { required: true, message: "Please enter payment period" },
                   ]}
                 >
-                  <Select placeholder="Select payment period">
-                    <Option value="monthly">Monthly Payment</Option>
-                    <Option value="makeup">Makeup Payment</Option>
+                  <Input placeholder="e.g., 2024-01" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label="Payment Type"
+                  name="payment_type"
+                  rules={[
+                    { required: true, message: "Please select payment type" },
+                  ]}
+                >
+                  <Select placeholder="Select payment type">
+                    <Option value="cash">Cash</Option>
+                    <Option value="card">Card</Option>
+                    <Option value="transfer">Bank Transfer</Option>
+                    <Option value="online">Online Payment</Option>
                   </Select>
                 </Form.Item>
               </Col>
