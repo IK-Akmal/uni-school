@@ -46,6 +46,46 @@ export interface OverduePaymentStudent {
   last_payment_date?: string;
 }
 
+// Новые интерфейсы для дополнительных статистик
+export interface MonthlyRevenueStats {
+  month: string;
+  revenue: number;
+  paymentsCount: number;
+}
+
+export interface GroupOverdueStats {
+  group_id: number;
+  group_title: string;
+  overdue_count: number;
+  total_students: number;
+  overdue_percentage: number;
+}
+
+export interface TopPayingStudent {
+  id: number;
+  fullname: string;
+  total_paid: number;
+  payments_count: number;
+  avg_payment: number;
+}
+
+export interface GroupCapacityStats {
+  group_id: number;
+  group_title: string;
+  current_students: number;
+  capacity: number;
+  fill_percentage: number;
+}
+
+export interface CriticalOverdueAlert {
+  student_id: number;
+  fullname: string;
+  phone_number: string;
+  days_overdue: number;
+  overdue_amount: number;
+  group_title: string;
+}
+
 export interface UpcomingPaymentStudent {
   id: number;
   fullname: string;
@@ -213,7 +253,7 @@ export const statisticsApi = createApi({
       providesTags: [{ type: "Statistics", id: "DASHBOARD" }],
     }),
 
-    // Получение студентов с просроченными платежами (включая частичные платежи)
+    // Получение студентов с просроченными платежами
     getOverduePaymentStudents: builder.query<OverduePaymentStudent[], void>({
       query: () => ({
         sql: `
@@ -299,94 +339,175 @@ export const statisticsApi = createApi({
         `,
         operationType: SqlOperationType.SELECT,
       }),
-      providesTags: [{ type: "Statistics", id: "OVERDUE_PAYMENTS" }],
+      providesTags: [{ type: "Statistics", id: "OVERDUE_STUDENTS" }],
     }),
 
-    // Получение статистики роста студентов
-    getStudentGrowthStats: builder.query<StudentGrowthStats[], void>({
-      query: () => ({
-        sql: `
-          WITH monthly_data AS (
-            SELECT 
-              strftime('%Y-%m', created_at) as period,
-              COUNT(*) as newStudents
-            FROM student 
-            WHERE created_at >= date('now', '-12 months')
-            GROUP BY strftime('%Y-%m', created_at)
-          ),
-          cumulative_data AS (
-            SELECT 
-              period,
-              newStudents,
-              SUM(newStudents) OVER (ORDER BY period) as totalStudents
-            FROM monthly_data
-          )
-          SELECT 
-            period,
-            newStudents,
-            totalStudents,
-            CASE 
-              WHEN LAG(totalStudents) OVER (ORDER BY period) = 0 THEN 0
-              ELSE ROUND(
-                ((totalStudents - LAG(totalStudents) OVER (ORDER BY period)) * 100.0 / 
-                LAG(totalStudents) OVER (ORDER BY period)), 2
-              )
-            END as growthRate
-          FROM cumulative_data
-          ORDER BY period ASC
-        `,
-        operationType: SqlOperationType.SELECT,
-      }),
-      providesTags: [{ type: "Statistics", id: "STUDENT_GROWTH" }],
-    }),
-
-    // Получение трендов платежей
-    getPaymentTrendStats: builder.query<PaymentTrendStats[], void>({
+    // Получение месячной статистики доходов
+    getMonthlyRevenueStats: builder.query<MonthlyRevenueStats[], void>({
       query: () => ({
         sql: `
           SELECT 
-            strftime('%Y-%m', date) as period,
-            SUM(amount) as amount,
-            COUNT(*) as count,
-            ROUND(AVG(amount), 2) as averageAmount
+            strftime('%Y-%m', date) as month,
+            SUM(amount) as revenue,
+            COUNT(*) as paymentsCount
           FROM payment 
           WHERE date >= date('now', '-12 months')
           GROUP BY strftime('%Y-%m', date)
-          ORDER BY period ASC
+          ORDER BY month ASC
         `,
         operationType: SqlOperationType.SELECT,
       }),
-      providesTags: [{ type: "Statistics", id: "PAYMENT_TRENDS" }],
+      transformResponse: (response: MonthlyRevenueStats[]) => {
+        return fillMissingRevenueMonths(response);
+      },
+      providesTags: [{ type: "Statistics", id: "MONTHLY_REVENUE" }],
+    }),
+
+    // Получение статистики просроченных платежей по группам
+    getGroupOverdueStats: builder.query<GroupOverdueStats[], void>({
+      query: () => ({
+        sql: `
+          WITH group_students AS (
+            SELECT 
+              g.id as group_id,
+              g.title as group_title,
+              COUNT(DISTINCT s.id) as total_students
+            FROM group_entity g
+            LEFT JOIN student_group sg ON g.id = sg.group_id
+            LEFT JOIN student s ON sg.student_id = s.id
+            GROUP BY g.id, g.title
+          ),
+          overdue_students AS (
+            SELECT 
+              sg.group_id,
+              COUNT(DISTINCT s.id) as overdue_count
+            FROM student s
+            JOIN student_group sg ON s.id = sg.student_id
+            WHERE 
+              CASE
+                WHEN s.payment_due > (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day')))
+                  THEN strftime('%d', 'now')
+                WHEN strftime('%d', 'now') < s.payment_due THEN 0
+                ELSE strftime('%d', 'now') - s.payment_due
+              END > 0
+            GROUP BY sg.group_id
+          )
+          SELECT 
+            gs.group_id,
+            gs.group_title,
+            COALESCE(os.overdue_count, 0) as overdue_count,
+            gs.total_students,
+            CASE 
+              WHEN gs.total_students = 0 THEN 0
+              ELSE ROUND((COALESCE(os.overdue_count, 0) * 100.0 / gs.total_students), 2)
+            END as overdue_percentage
+          FROM group_students gs
+          LEFT JOIN overdue_students os ON gs.group_id = os.group_id
+          WHERE gs.total_students > 0
+          ORDER BY overdue_percentage DESC, overdue_count DESC
+        `,
+        operationType: SqlOperationType.SELECT,
+      }),
+      providesTags: [{ type: "Statistics", id: "GROUP_OVERDUE" }],
     }),
 
     // Получение топ студентов по платежам
-    getTopPayingStudents: builder.query<
-      {
-        student_id: number;
-        fullname: string;
-        total_amount: number;
-        payment_count: number;
-      }[],
-      { limit?: number }
-    >({
+    getTopPayingStudents: builder.query<TopPayingStudent[], { limit?: number }>({
       query: ({ limit = 10 }) => ({
         sql: `
           SELECT 
-            s.id as student_id,
+            s.id,
             s.fullname,
-            COALESCE(SUM(p.amount), 0) as total_amount,
-            COUNT(p.id) as payment_count
+            COALESCE(SUM(p.amount), 0) as total_paid,
+            COUNT(p.id) as payments_count,
+            CASE 
+              WHEN COUNT(p.id) = 0 THEN 0
+              ELSE ROUND(AVG(p.amount), 2)
+            END as avg_payment
           FROM student s
           LEFT JOIN payment p ON s.id = p.student_id
           GROUP BY s.id, s.fullname
-          HAVING total_amount > 0
-          ORDER BY total_amount DESC
+          HAVING total_paid > 0
+          ORDER BY total_paid DESC
           LIMIT ?
         `,
         args: [limit],
         operationType: SqlOperationType.SELECT,
       }),
       providesTags: [{ type: "Statistics", id: "TOP_PAYING_STUDENTS" }],
+    }),
+
+    // Получение статистики заполненности групп
+    getGroupCapacityStats: builder.query<GroupCapacityStats[], void>({
+      query: () => ({
+        sql: `
+          SELECT 
+            g.id as group_id,
+            g.title as group_title,
+            COUNT(DISTINCT s.id) as current_students,
+            20 as capacity,
+            CASE 
+              WHEN 20 = 0 THEN 0
+              ELSE ROUND((COUNT(DISTINCT s.id) * 100.0 / 20), 2)
+            END as fill_percentage
+          FROM group_entity g
+          LEFT JOIN student_group sg ON g.id = sg.group_id
+          LEFT JOIN student s ON sg.student_id = s.id
+          GROUP BY g.id, g.title
+          ORDER BY fill_percentage DESC, current_students DESC
+        `,
+        operationType: SqlOperationType.SELECT,
+      }),
+      providesTags: [{ type: "Statistics", id: "GROUP_CAPACITY" }],
+    }),
+
+    // Получение критических просрочек
+    getCriticalOverdueAlerts: builder.query<CriticalOverdueAlert[], { daysThreshold?: number }>({
+      query: ({ daysThreshold = 7 }) => ({
+        sql: `
+          WITH student_groups AS (
+            SELECT 
+              s.id as student_id,
+              s.fullname,
+              s.phone_number,
+              s.payment_due,
+              g.title as group_title,
+              g.course_price,
+              CASE
+                WHEN s.payment_due > (strftime('%d', date(strftime('%Y-%m', 'now') || '-01', '+1 month', '-1 day')))
+                  THEN strftime('%d', 'now')
+                WHEN strftime('%d', 'now') < s.payment_due THEN 0
+                ELSE strftime('%d', 'now') - s.payment_due
+              END as days_overdue
+            FROM student s
+            JOIN student_group sg ON s.id = sg.student_id
+            JOIN group_entity g ON sg.group_id = g.id
+          ),
+          student_payments AS (
+            SELECT 
+              p.student_id,
+              SUM(p.amount) as paid_this_month
+            FROM payment p
+            WHERE strftime('%Y-%m', p.date) = strftime('%Y-%m', 'now')
+            GROUP BY p.student_id
+          )
+          SELECT 
+            sg.student_id,
+            sg.fullname,
+            sg.phone_number,
+            sg.days_overdue,
+            sg.group_title,
+            COALESCE(sg.course_price - sp.paid_this_month, sg.course_price) as overdue_amount
+          FROM student_groups sg
+          LEFT JOIN student_payments sp ON sg.student_id = sp.student_id
+          WHERE sg.days_overdue >= ?
+          AND COALESCE(sg.course_price - sp.paid_this_month, sg.course_price) > 0
+          ORDER BY sg.days_overdue DESC, overdue_amount DESC
+        `,
+        args: [daysThreshold],
+        operationType: SqlOperationType.SELECT,
+      }),
+      providesTags: [{ type: "Statistics", id: "CRITICAL_OVERDUE" }],
     }),
 
     // Получение студентов, которые должны заплатить в ближайшие дни
@@ -563,6 +684,17 @@ function fillMissingMonths<T extends { month: string; count: number }>(
   }) as T[];
 }
 
+// Функция для заполнения пропущенных месяцев для статистики доходов
+function fillMissingRevenueMonths(data: MonthlyRevenueStats[]): MonthlyRevenueStats[] {
+  const emptyMonths = generateEmptyRevenueMonths();
+  const dataMap = new Map(data.map((item) => [item.month, item]));
+
+  return emptyMonths.map((emptyMonth) => {
+    const existing = dataMap.get(emptyMonth.month);
+    return existing || emptyMonth;
+  });
+}
+
 // Генерация пустых данных для последних 6 месяцев
 function generateEmptyMonths(hasAmount = false): any[] {
   const months = [];
@@ -575,9 +707,25 @@ function generateEmptyMonths(hasAmount = false): any[] {
 
     if (hasAmount) {
       emptyData.totalAmount = 0;
+      emptyData.revenue = 0;
+      emptyData.paymentsCount = 0;
     }
 
     months.push(emptyData);
+  }
+  return months;
+}
+
+// Генерация пустых данных для статистики доходов за последние 12 месяцев
+function generateEmptyRevenueMonths(): MonthlyRevenueStats[] {
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const month = dayjs().subtract(i, "month").format("YYYY-MM");
+    months.push({
+      month,
+      revenue: 0,
+      paymentsCount: 0,
+    });
   }
   return months;
 }
@@ -588,9 +736,11 @@ export const {
   useGetMonthlyPaymentStatsQuery,
   useGetDashboardStatsQuery,
   useGetOverduePaymentStudentsQuery,
-  useGetStudentGrowthStatsQuery,
-  useGetPaymentTrendStatsQuery,
+  useGetMonthlyRevenueStatsQuery,
+  useGetGroupOverdueStatsQuery,
   useGetTopPayingStudentsQuery,
+  useGetGroupCapacityStatsQuery,
+  useGetCriticalOverdueAlertsQuery,
   useGetUpcomingPaymentStudentsQuery,
   useGetStudentMonthlyDebtsQuery,
 } = statisticsApi;

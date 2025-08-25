@@ -5,11 +5,19 @@ import {
   useGetMonthlyGroupStatsQuery,
   useGetMonthlyPaymentStatsQuery,
   useGetDashboardStatsQuery,
+  useGetMonthlyRevenueStatsQuery,
+  useGetGroupOverdueStatsQuery,
+  useGetTopPayingStudentsQuery,
+  useGetCriticalOverdueAlertsQuery,
 } from "@/shared/api/statisticsApi";
 import { MonthlyChart } from "./monthly-chart";
 import { PaymentChart } from "./payment-chart";
 import { DashboardStatsCards } from "./dashboard-stats";
 import { OverduePaymentsAlert } from "./overdue-payments-alert";
+import { RevenueChart } from "./revenue-chart";
+import { GroupOverdueStatsCard } from "./group-overdue-stats";
+import { TopPayingStudentsCard } from "./top-paying-students";
+import { CriticalOverdueAlertsCard } from "./critical-overdue-alerts";
 
 const { Title } = Typography;
 
@@ -32,6 +40,28 @@ export const Dashboard: React.FC = () => {
     });
   const { data: paymentStats, isLoading: isLoadingPayments } =
     useGetMonthlyPaymentStatsQuery(undefined, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
+
+  // Загружаем новые данные для финансовой аналитики
+  const { data: revenueStats, isLoading: isLoadingRevenue } =
+    useGetMonthlyRevenueStatsQuery(undefined, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
+  const { data: groupOverdueStats, isLoading: isLoadingGroupOverdue } =
+    useGetGroupOverdueStatsQuery(undefined, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
+  const { data: topPayingStudents, isLoading: isLoadingTopPaying } =
+    useGetTopPayingStudentsQuery({ limit: 10 }, {
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true,
+    });
+  const { data: criticalOverdueAlerts, isLoading: isLoadingCriticalOverdue } =
+    useGetCriticalOverdueAlertsQuery({ daysThreshold: 7 }, {
       refetchOnFocus: true,
       refetchOnMountOrArgChange: true,
     });
@@ -88,6 +118,38 @@ export const Dashboard: React.FC = () => {
               amountKey="totalAmount"
             />
           )}
+        </Col>
+      </Row>
+
+      <Divider orientation="left">Financial Analytics</Divider>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <RevenueChart 
+            data={revenueStats || []} 
+            loading={isLoadingRevenue} 
+          />
+        </Col>
+        <Col xs={24} lg={12}>
+          <GroupOverdueStatsCard 
+            data={groupOverdueStats || []} 
+            loading={isLoadingGroupOverdue} 
+          />
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} lg={12}>
+          <TopPayingStudentsCard 
+            data={topPayingStudents || []} 
+            loading={isLoadingTopPaying} 
+          />
+        </Col>
+        <Col xs={24} lg={12}>
+          <CriticalOverdueAlertsCard 
+            data={criticalOverdueAlerts || []} 
+            loading={isLoadingCriticalOverdue} 
+          />
         </Col>
       </Row>
     </div>
