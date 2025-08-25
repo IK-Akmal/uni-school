@@ -1,0 +1,92 @@
+name: 'Update Updater JSON'
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-updater-json:
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Get release info
+        id: release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release = context.payload.release;
+            const assets = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id
+            });
+            
+            const platforms = {};
+            
+            for (const asset of assets.data) {
+              if (asset.name.includes('.msi')) {
+                platforms['windows-x86_64'] = {
+                  signature: '',
+                  url: asset.browser_download_url
+                };
+              } else if (asset.name.includes('.app.tar.gz')) {
+                platforms['darwin-x86_64'] = {
+                  signature: '',
+                  url: asset.browser_download_url
+                };
+              } else if (asset.name.includes('.AppImage.tar.gz')) {
+                platforms['linux-x86_64'] = {
+                  signature: '',
+                  url: asset.browser_download_url
+                };
+              }
+              
+              // Get signatures
+              if (asset.name.includes('.sig')) {
+                const platform = asset.name.includes('msi') ? 'windows-x86_64' :
+                                asset.name.includes('app') ? 'darwin-x86_64' : 'linux-x86_64';
+                if (platforms[platform]) {
+                  const sigResponse = await github.rest.repos.getReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    asset_id: asset.id,
+                    headers: { Accept: 'application/octet-stream' }
+                  });
+                  platforms[platform].signature = Buffer.from(sigResponse.data).toString('utf8');
+                }
+              }
+            }
+            
+            const updaterJson = {
+              version: release.tag_name,
+              notes: release.body,
+              pub_date: release.published_at,
+              platforms
+            };
+            
+            return JSON.stringify(updaterJson, null, 2);
+
+      - name: Create updater.json
+        run: |
+          echo '${{ steps.release.outputs.result }}' > latest.json
+
+      - name: Upload updater.json to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./latest.json
+          asset_name: latest.json
+          asset_content_type: application/json

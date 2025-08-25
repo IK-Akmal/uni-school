@@ -33,8 +33,16 @@
     ]
   },
   "plugins": {
-    "sql":{
+    "sql": {
       "preload": ["sqlite:db.sqlite"]
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/IK-Akmal/uni-school/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg4OUE5NTY4QUVFODlFRUQKUldUdG51aXVhSldhaU55Vk5KdWZUb3ZRemNzQUxIaytzc2VQS05TWnFjRXY1dUVZbDI2RmVmaGwK"
     }
   }
 }
