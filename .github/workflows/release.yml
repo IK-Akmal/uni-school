@@ -71,14 +71,18 @@ jobs:
         if: matrix.platform == 'ubuntu-20.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Setup updater keys
         run: |
-          echo "${{ secrets.TAURI_PRIVATE_KEY }}" > tauri-updater.key
+          if [ -n "${{ secrets.TAURI_PRIVATE_KEY }}" ]; then
+            echo "${{ secrets.TAURI_PRIVATE_KEY }}" > tauri-updater.key
+          else
+            echo "Warning: TAURI_PRIVATE_KEY not set, updater will be disabled"
+          fi
         shell: bash
 
       - name: Build Tauri app
