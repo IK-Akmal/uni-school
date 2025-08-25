@@ -7,8 +7,9 @@ import {
   Typography,
   type TableProps,
 } from "antd";
+import { useNavigate } from "react-router";
 
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, EyeOutlined } from "@ant-design/icons";
 
 import type { PaymentStudent } from "@/shared/types/models";
 
@@ -25,6 +26,7 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
   onDeletePayment,
   onEditPayment,
 }) => {
+  const navigate = useNavigate();
   const [tableHeight, setTableHeight] = useState<number>(500);
 
   // Устанавливаем динамическую высоту таблицы
@@ -149,13 +151,20 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
       title: "Actions",
       key: "actions",
       fixed: "right",
-      width: 100,
+      width: 130,
       render: (_, record) => (
         <Space size="middle">
           <Button
             type="link"
+            icon={<EyeOutlined />}
+            onClick={() => navigate(`/payment/${record.id}`)}
+            title="View Details"
+          />
+          <Button
+            type="link"
             icon={<EditOutlined />}
             onClick={() => onEditPayment(record)}
+            title="Edit Payment"
           />
 
           <Popconfirm
@@ -165,7 +174,7 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
             okText="Yes"
             cancelText="No"
           >
-            <Button type="link" danger icon={<DeleteOutlined />} />
+            <Button type="link" danger icon={<DeleteOutlined />} title="Delete Payment" />
           </Popconfirm>
         </Space>
       ),

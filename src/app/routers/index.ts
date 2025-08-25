@@ -6,6 +6,7 @@ import Students from "@/pages/students";
 import Student from "@/pages/student";
 import Groups from "@/pages/groups";
 import Payments from "@/pages/payments";
+import Payment from "@/pages/payment";
 import Debtors from "@/pages/debtors";
 import About from "@/pages/about";
 
@@ -34,6 +35,10 @@ const router = createBrowserRouter([
       {
         path: "payments",
         Component: Payments,
+      },
+      {
+        path: "payment/:id",
+        Component: Payment,
       },
       {
         path: "debtors",

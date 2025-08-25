@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Card,
   Table,
@@ -14,9 +15,10 @@ import {
   Alert,
   Tag,
   Tooltip,
-  Modal,
-  message,
 } from "antd";
+
+import type { ColumnsType } from "antd/es/table";
+
 import {
   WarningOutlined,
   ReloadOutlined,
@@ -25,13 +27,12 @@ import {
   CalendarOutlined,
   DollarOutlined,
 } from "@ant-design/icons";
+
 import {
   useGetOverduePaymentStudentsQuery,
   useGetUpcomingPaymentStudentsQuery,
   useGetStudentMonthlyDebtsQuery,
 } from "@/shared/api/statisticsApi";
-import type { OverduePaymentStudent } from "../shared/api/statisticsApi";
-import type { ColumnsType } from "antd/es/table";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -57,6 +58,7 @@ interface CombinedPaymentStudent {
 }
 
 const Debtors: React.FC = () => {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<DebtorFilters>({
     search: "",
     sortBy: "days_overdue",
@@ -226,19 +228,6 @@ const Debtors: React.FC = () => {
     };
   }, [debtors]);
 
-  // Обработчик звонка студенту (пример функциональности)
-  const handleCallStudent = (student: OverduePaymentStudent) => {
-    Modal.confirm({
-      title: "Call Student",
-      content: `Do you want to call ${student.fullname} at ${student.phone_number}?`,
-      icon: <PhoneOutlined />,
-      onOk() {
-        message.success(`Calling ${student.fullname}...`);
-        // Здесь можно интегрировать с системой звонков
-      },
-    });
-  };
-
   // Объединенные колонки для общей таблицы
   const combinedColumns: ColumnsType<CombinedPaymentStudent> = [
     {
@@ -281,22 +270,9 @@ const Debtors: React.FC = () => {
       title: "Phone Number",
       dataIndex: "phone_number",
       key: "phone_number",
-      render: (phone: string, record: CombinedPaymentStudent) => (
+      render: (phone: string) => (
         <Space>
           <Text copyable>{phone}</Text>
-          <Button
-            type="text"
-            size="small"
-            icon={<PhoneOutlined />}
-            onClick={() =>
-              handleCallStudent({
-                ...record,
-                days_overdue: record.days_overdue || 0,
-                remaining_amount: getStudentMonthlyAmount(record.id),
-              })
-            }
-            title="Call student"
-          />
         </Space>
       ),
     },
@@ -391,22 +367,14 @@ const Debtors: React.FC = () => {
               type="primary"
               size="small"
               icon={<PhoneOutlined />}
-              onClick={() =>
-                handleCallStudent({
-                  ...record,
-                  days_overdue: record.days_overdue || 0,
-                  remaining_amount: getStudentMonthlyAmount(record.id),
-                })
-              }
+              href={`tel:${record.phone_number}`}
             />
           </Tooltip>
           <Tooltip title="View payment history">
             <Button
               size="small"
               icon={<DollarOutlined />}
-              onClick={() =>
-                message.info("Payment history feature coming soon")
-              }
+              onClick={() => navigate(`/student/${record.id}`)}
             />
           </Tooltip>
         </Space>

@@ -6,7 +6,7 @@ A modern desktop application for managing school operations including students, 
 
 - **Student Management**: Add, edit, and manage student information
 - **Group Management**: Create and organize student groups
-- **Payment Tracking**: Monitor payments and track overdue amounts
+- **Payment Management**: Create, edit, and track all payment records with filtering
 - **Statistics & Analytics**: View dashboard with growth trends and payment analytics
 - **Notifications**: Get alerts for overdue payments
 - **Modern UI**: Clean, responsive interface built with Ant Design
