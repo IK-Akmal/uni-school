@@ -55,6 +55,7 @@ jobs:
           tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
           releaseName: "School Management v__VERSION__"
           releaseBody: "Новая версия системы управления школой. Скачайте установщик для вашей операционной системы."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
           args: ${{ matrix.args }}
