@@ -12,88 +12,100 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Get release info
-        id: release
+      - name: Create updater JSON
+        id: create-json
         uses: actions/github-script@v7
         with:
           script: |
             const release = context.payload.release;
-            const assets = await github.rest.repos.listReleaseAssets({
+            
+            // Get all assets from the release
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: release.id
             });
             
-            const platforms = {};
-            const signatures = {};
+            console.log('Found assets:', assets.map(a => a.name));
             
-            // First pass: collect signatures
-            for (const asset of assets.data) {
-              if (asset.name.includes('.sig')) {
-                try {
-                  const sigResponse = await fetch(asset.browser_download_url);
-                  const signature = await sigResponse.text();
-                  
-                  if (asset.name.includes('msi')) {
-                    signatures['windows-x86_64'] = signature.trim();
-                  } else if (asset.name.includes('app')) {
-                    signatures['darwin-x86_64'] = signature.trim();
-                  } else if (asset.name.includes('AppImage')) {
-                    signatures['linux-x86_64'] = signature.trim();
+            const platforms = {};
+            
+            // Find binary assets and their signatures
+            for (const asset of assets) {
+              let platform = null;
+              let isSignature = asset.name.endsWith('.sig');
+              
+              if (asset.name.includes('.msi')) {
+                platform = 'windows-x86_64';
+              } else if (asset.name.includes('.app.tar.gz')) {
+                platform = 'darwin-x86_64';
+              } else if (asset.name.includes('.AppImage.tar.gz')) {
+                platform = 'linux-x86_64';
+              }
+              
+              if (platform) {
+                if (!platforms[platform]) {
+                  platforms[platform] = { url: '', signature: '' };
+                }
+                
+                if (isSignature) {
+                  // Download signature content
+                  try {
+                    const sigResponse = await fetch(asset.browser_download_url);
+                    const signature = await sigResponse.text();
+                    platforms[platform].signature = signature.trim();
+                  } catch (error) {
+                    console.error(`Failed to fetch signature for ${asset.name}:`, error);
+                    platforms[platform].signature = '';
                   }
-                } catch (error) {
-                  console.error(`Failed to fetch signature for ${asset.name}:`, error);
+                } else {
+                  platforms[platform].url = asset.browser_download_url;
                 }
               }
             }
             
-            // Second pass: collect binaries and match with signatures
-            for (const asset of assets.data) {
-              if (asset.name.includes('.msi')) {
-                platforms['windows-x86_64'] = {
-                  signature: signatures['windows-x86_64'] || '',
-                  url: asset.browser_download_url
-                };
-              } else if (asset.name.includes('.app.tar.gz')) {
-                platforms['darwin-x86_64'] = {
-                  signature: signatures['darwin-x86_64'] || '',
-                  url: asset.browser_download_url
-                };
-              } else if (asset.name.includes('.AppImage.tar.gz')) {
-                platforms['linux-x86_64'] = {
-                  signature: signatures['linux-x86_64'] || '',
-                  url: asset.browser_download_url
-                };
-              }
-            }
-            
+            // Create updater JSON
             const updaterJson = {
               version: release.tag_name,
               notes: release.body || 'New version available',
               pub_date: release.published_at,
-              platforms
+              platforms: platforms
             };
             
-            return JSON.stringify(updaterJson, null, 2);
+            console.log('Generated updater JSON:', JSON.stringify(updaterJson, null, 2));
+            
+            // Write to file
+            const fs = require('fs');
+            fs.writeFileSync('latest.json', JSON.stringify(updaterJson, null, 2));
+            
+            return 'success';
 
-      - name: Create updater.json
-        run: |
-          echo '${{ steps.release.outputs.result }}' > latest.json
-
-      - name: Upload updater.json to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload latest.json to release
+        uses: actions/github-script@v7
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./latest.json
-          asset_name: latest.json
-          asset_content_type: application/json
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const release = context.payload.release;
+            const filePath = 'latest.json';
+            const fileName = 'latest.json';
+            
+            // Read the file
+            const fileContent = fs.readFileSync(filePath);
+            
+            // Upload as release asset
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id,
+              name: fileName,
+              data: fileContent,
+              headers: {
+                'content-type': 'application/json'
+              }
+            });
+            
+            console.log(`Successfully uploaded ${fileName} to release`);
+            return 'success';
