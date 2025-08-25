@@ -3,6 +3,7 @@ name: 'Update Updater JSON'
 on:
   release:
     types: [published, released]
+  workflow_dispatch:
   workflow_run:
     workflows: ["Release"]
     types: [completed]
@@ -12,7 +13,7 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: write
-    if: github.event_name == 'release' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
 
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +27,8 @@ jobs:
             
             if (context.eventName === 'release') {
               release = context.payload.release;
-            } else if (context.eventName === 'workflow_run') {
-              // Get the latest release
+            } else {
+              // Get the latest release for workflow_run or manual dispatch
               const { data: releases } = await github.rest.repos.listReleases({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
