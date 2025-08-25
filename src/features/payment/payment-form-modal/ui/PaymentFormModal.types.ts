@@ -10,5 +10,10 @@ export interface PaymentFormModalProps {
 
 export type FieldType = {
   date: Dayjs | null;
-  amount: string;
+  amount: number;
+  paymentType: string;
+  paymentPeriod: string;
+  groupId: number;
+  coursePriceAtPayment?: number;
+  notes?: string;
 };
