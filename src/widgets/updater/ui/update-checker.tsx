@@ -83,9 +83,17 @@ export const UpdateChecker: React.FC<UpdateCheckerProps> = ({
       });
       setShowModal(false);
     } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+          ? error
+          : "Unknown error";
+
       notification.error({
         message: "Update Failed",
-        description: "Failed to download and install the update.",
+        description:
+          "Failed to download and install the update. " + errorMessage,
         duration: 5,
       });
     } finally {
