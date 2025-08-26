@@ -24,6 +24,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -58,7 +59,10 @@
         "https://github.com/IK-Akmal/uni-school/releases/latest/download/latest.json"
       ],
       "dialog": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg4OUE5NTY4QUVFODlFRUQKUldUdG51aXVhSldhaU55Vk5KdWZUb3ZRemNzQUxIaytzc2VQS05TWnFjRXY1dUVZbDI2RmVmaGwK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg4OUE5NTY4QUVFODlFRUQKUldUdG51aXVhSldhaU55Vk5KdWZUb3ZRemNzQUxIaytzc2VQS05TWnFjRXY1dUVZbDI2RmVmaGwK",
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }
