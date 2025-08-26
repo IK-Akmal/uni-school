@@ -55,7 +55,21 @@ export class UpdaterService {
       };
     } catch (error) {
       console.error("Error checking for updates:", error);
-      // Return safe fallback instead of throwing
+      
+      // Check if error is related to signing keys
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("TAURI_SIGNING_PRIVATE_KEY") || 
+          errorMessage.includes("no private key") ||
+          errorMessage.includes("public key has been found")) {
+        console.log("Updater disabled - signing keys not configured");
+        const currentVersion = await getVersion().catch(() => "unknown");
+        return {
+          available: false,
+          currentVersion,
+        };
+      }
+      
+      // Return safe fallback for other errors
       const currentVersion = await getVersion().catch(() => "unknown");
       return {
         available: false,
@@ -138,6 +152,15 @@ export class UpdaterService {
       }
     } catch (error) {
       console.error("Error downloading and installing update:", error);
+      
+      // Check if error is related to signing keys
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("TAURI_SIGNING_PRIVATE_KEY") || 
+          errorMessage.includes("no private key") ||
+          errorMessage.includes("public key has been found")) {
+        throw new Error("Updates are disabled - signing keys not configured");
+      }
+      
       throw new Error("Failed to download and install update");
     }
   }
